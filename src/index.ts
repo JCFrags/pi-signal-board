@@ -26,6 +26,7 @@ import { createPiSessionStore } from './persistence/pi-session-store.js';
 import type { RuntimeLifecycleHooks, SignalBoardRuntime } from './runtime/types.js';
 import { ExpiryService, type ExpiryTimerAdapter } from './services/expiry-service.js';
 import { TurnQuestionRateCounter } from './services/question-rate-counter.js';
+import { QuestionEscalationService } from './services/question-escalation-service.js';
 import { QuestionService } from './services/question-service.js';
 import { TurnUpdateRateCounter } from './services/update-rate-counter.js';
 import { UpdateService } from './services/update-service.js';
@@ -135,6 +136,23 @@ export function createSignalBoardExtension(
           return;
         }
         safeClearExpiryHandle(adapters.expiryTimers, handle);
+      },
+      async escalateConditionalQuestionsLocked(runtime) {
+        constructRuntimeServices(runtime, pi, lifecycle, adapters);
+        const result = await runtime.questionEscalationService?.escalateConditionalQuestionsLocked(
+          safeAdapterTimestamp(adapters.now),
+        );
+        if (result !== undefined && !result.ok) {
+          runtime.diagnostics.record({
+            at: safeAdapterTimestamp(adapters.now),
+            code: result.error.code,
+            severity: 'error',
+            area: result.error.code === 'SB_PERSISTENCE_FAILED' ? 'persistence' : 'lifecycle',
+            category:
+              result.error.code === 'SB_PERSISTENCE_FAILED' ? 'append_rejected' : 'unexpected',
+          });
+        }
+        await adapters.hooks.escalateConditionalQuestionsLocked?.(runtime);
       },
       async refreshLocked(runtime) {
         await adapters.hooks.refreshLocked?.(runtime);
@@ -297,6 +315,31 @@ function constructRuntimeServices(
     cwd: runtime.context.cwd,
     config: runtime.config.config,
     rateCounter: questionRateCounter,
+  });
+  runtime.questionEscalationService = new QuestionEscalationService({
+    queue: lifecycle.queue,
+    readState: () => requireCurrent().state,
+    swapState: (state) => {
+      requireCurrent().state = state;
+    },
+    append: (event) => sessionStore.append(event),
+    refresh,
+    notify: (message, severity) => {
+      const current = requireCurrent();
+      if (current.context.hasUI) current.context.ui.notify(message, severity);
+    },
+    recordPostDurableFailure: (area, at) => {
+      requireCurrent().diagnostics.record({
+        at,
+        code: 'SB_UI_UNAVAILABLE',
+        severity: 'warning',
+        area: area === 'notification' ? 'lifecycle' : 'ui',
+        category: 'ui_failure',
+      });
+    },
+    clock: { now: adapters.now },
+    ids,
+    config: runtime.config.config,
   });
 }
 

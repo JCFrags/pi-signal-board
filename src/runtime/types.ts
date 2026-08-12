@@ -11,6 +11,7 @@ import type { Diagnostics } from '../services/diagnostics.js';
 import type { ExpiryService } from '../services/expiry-service.js';
 import type { MutationQueue } from '../services/mutation-queue.js';
 import type { TurnQuestionRateCounter } from '../services/question-rate-counter.js';
+import type { QuestionEscalationService } from '../services/question-escalation-service.js';
 import type { QuestionService } from '../services/question-service.js';
 import type { TurnUpdateRateCounter } from '../services/update-rate-counter.js';
 import type { UpdateService } from '../services/update-service.js';
@@ -40,6 +41,7 @@ export interface SignalBoardRuntime {
   updateService?: UpdateService;
   questionService?: QuestionService;
   expiryService?: ExpiryService;
+  questionEscalationService?: QuestionEscalationService;
   /** One adapter owns the namespaced widget and status for this runtime. */
   ui?: SignalBoardUiAdapter;
   state: BoardState;
