@@ -11,7 +11,6 @@ import {
   ANSWER_CUSTOM_TYPE,
   COMMAND_INVOCATION,
   COMMAND_NAME,
-  QUESTION_TOOL_NAME,
   SHORTCUT,
 } from './constants.js';
 import { RuntimeIdGenerator } from './domain/ids.js';
@@ -25,8 +24,11 @@ import {
 } from './integration/lifecycle.js';
 import { createPiSessionStore } from './persistence/pi-session-store.js';
 import type { RuntimeLifecycleHooks, SignalBoardRuntime } from './runtime/types.js';
+import { TurnQuestionRateCounter } from './services/question-rate-counter.js';
+import { QuestionService } from './services/question-service.js';
 import { TurnUpdateRateCounter } from './services/update-rate-counter.js';
 import { UpdateService } from './services/update-service.js';
+import { registerQuestionTool } from './tools/question-tool.js';
 import {
   PendingToolFailures,
   patchPendingToolFailure,
@@ -89,11 +91,12 @@ export function createSignalBoardExtension(
     const hooks: RuntimeLifecycleHooks = {
       ...adapters.hooks,
       async evaluateExpiryLocked(runtime) {
-        constructUpdateRuntime(runtime, pi, lifecycle, adapters);
+        constructMutationRuntime(runtime, pi, lifecycle, adapters);
         await adapters.hooks.evaluateExpiryLocked?.(runtime);
       },
       async resetTurnRateCountersLocked(runtime) {
         runtime.updateRateCounter?.reset();
+        runtime.questionRateCounter?.reset();
         await adapters.hooks.resetTurnRateCountersLocked?.(runtime);
       },
       async refreshLocked(runtime) {
@@ -147,10 +150,8 @@ function registerStaticTools(
   pendingFailures: PendingToolFailures,
 ): void {
   registerUpdateTool(pi, lifecycle, pendingFailures);
-  for (const [name, label] of [
-    [QUESTION_TOOL_NAME, 'Signal Board Question'],
-    [ACK_TOOL_NAME, 'Signal Board Acknowledgement'],
-  ] as const) {
+  registerQuestionTool(pi, lifecycle, pendingFailures);
+  for (const [name, label] of [[ACK_TOOL_NAME, 'Signal Board Acknowledgement']] as const) {
     pi.registerTool({
       name,
       label,
@@ -168,7 +169,7 @@ function registerStaticTools(
   }
 }
 
-function constructUpdateRuntime(
+function constructMutationRuntime(
   runtime: SignalBoardRuntime,
   pi: ExtensionAPI,
   lifecycle: RuntimeLifecycle,
@@ -178,6 +179,7 @@ function constructUpdateRuntime(
   runtime.ui ??= createSignalBoardUiAdapter(runtime.context, runtime.diagnostics);
   const ids = new RuntimeIdGenerator();
   const rateCounter = new TurnUpdateRateCounter();
+  const questionRateCounter = new TurnQuestionRateCounter();
   const sessionStore = createPiSessionStore(pi, {
     correlationIds: { nextCorrelationId: () => randomUUID() },
     at: () => adapters.now().toISOString(),
@@ -193,6 +195,7 @@ function constructUpdateRuntime(
   };
   runtime.ids = ids;
   runtime.updateRateCounter = rateCounter;
+  runtime.questionRateCounter = questionRateCounter;
   runtime.sessionStore = sessionStore;
   runtime.updateService = new UpdateService({
     queue: lifecycle.queue,
@@ -211,6 +214,24 @@ function constructUpdateRuntime(
     cwd: runtime.context.cwd,
     config: runtime.config.config,
     rateCounter,
+  });
+  runtime.questionService = new QuestionService({
+    queue: lifecycle.queue,
+    readState: () => requireCurrent().state,
+    swapState: (state) => {
+      requireCurrent().state = state;
+    },
+    append: (event) => sessionStore.append(event),
+    refresh: async () => {
+      const current = requireCurrent();
+      await adapters.hooks.refreshLocked?.(current);
+      refreshRuntimeUi(current, adapters);
+    },
+    clock: { now: adapters.now },
+    ids,
+    cwd: runtime.context.cwd,
+    config: runtime.config.config,
+    rateCounter: questionRateCounter,
   });
 }
 

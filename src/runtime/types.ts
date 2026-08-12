@@ -9,6 +9,8 @@ import type { SessionHealthSnapshot, SessionPersistence } from '../integration/d
 import type { PiSessionStore } from '../persistence/pi-session-store.js';
 import type { Diagnostics } from '../services/diagnostics.js';
 import type { MutationQueue } from '../services/mutation-queue.js';
+import type { TurnQuestionRateCounter } from '../services/question-rate-counter.js';
+import type { QuestionService } from '../services/question-service.js';
 import type { TurnUpdateRateCounter } from '../services/update-rate-counter.js';
 import type { UpdateService } from '../services/update-service.js';
 import type { SignalBoardUiAdapter } from '../ui/adapter.js';
@@ -29,11 +31,13 @@ export interface SignalBoardRuntime {
   readonly compatibility: CompatibilityResult;
   readonly config: ConfigLoadResult;
   readonly diagnostics: Diagnostics;
-  /** Runtime-owned update vertical-slice dependencies. */
+  /** Runtime-owned durable mutation dependencies. */
   ids?: RuntimeIdGenerator;
   updateRateCounter?: TurnUpdateRateCounter;
+  questionRateCounter?: TurnQuestionRateCounter;
   sessionStore?: PiSessionStore;
   updateService?: UpdateService;
+  questionService?: QuestionService;
   /** One adapter owns the namespaced widget and status for this runtime. */
   ui?: SignalBoardUiAdapter;
   state: BoardState;
