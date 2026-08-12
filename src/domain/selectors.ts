@@ -1,7 +1,10 @@
 import type { QuestionId, UpdateId } from './ids.js';
 import type {
+  AnswerAcknowledgement,
+  AnswerRecord,
   BoardState,
   DecisionRecord,
+  DeliveryAttempt,
   ItemVisibleChange,
   QuestionItem,
   UpdateItem,
@@ -74,6 +77,41 @@ export interface SummaryProjection {
   readonly omittedItems: number;
 }
 
+export type InboxQuestionCategory =
+  | 'delivery_failed'
+  | 'needs_attention'
+  | 'blocking'
+  | 'high_pending'
+  | 'normal_pending'
+  | 'sent';
+
+export interface StaleQuestionDetail {
+  readonly reason?: string;
+  readonly originalExpiry?: string;
+  readonly staleAt?: string;
+}
+
+/** Complete read-only question data needed by a later detail view model. */
+export interface QuestionDetailProjection {
+  readonly item: QuestionItem;
+  readonly statusChangedAt: string;
+  readonly userAnswerable: boolean;
+  readonly dismissible: boolean;
+  readonly retryableDelivery: boolean;
+  readonly deliveryPending: boolean;
+  readonly awaitingAcknowledgement: boolean;
+  readonly attentionState?: 'delivery_failed' | 'needs_attention';
+  readonly answer?: AnswerRecord;
+  readonly acknowledgement?: AnswerAcknowledgement;
+  readonly latestDeliveryAttempt?: DeliveryAttempt;
+  readonly stale?: StaleQuestionDetail;
+}
+
+/** Inbox metadata keeps user-answerable and attention-only states distinct. */
+export interface InboxQuestionProjection extends QuestionDetailProjection {
+  readonly category: InboxQuestionCategory;
+}
+
 /** Select non-archived updates that have not reached a terminal kind. */
 export function selectActiveUpdates(state: BoardState): readonly UpdateItem[] {
   return immutable(
@@ -97,19 +135,41 @@ export function selectActionableQuestions(state: BoardState): readonly QuestionI
 /** Select all Inbox states, including answers queued for acknowledgement. */
 export function selectInboxQuestions(state: BoardState): readonly QuestionItem[] {
   return immutable(
-    [...state.questions.values()]
-      .filter((item) =>
-        [
-          'pending',
-          'blocking',
-          'answered',
-          'delivery_queued',
-          'delivery_failed',
-          'needs_attention',
-        ].includes(item.status),
-      )
-      .sort(compareInboxQuestions),
+    [...state.questions.values()].filter(isInboxQuestion).sort(compareInboxQuestions),
   );
+}
+
+/** Select rich projections for all questions that need a useful user action or attention. */
+export function selectActionableQuestionProjections(
+  state: BoardState,
+): readonly InboxQuestionProjection[] {
+  return immutable(
+    [...state.questions.values()]
+      .filter(isActionableQuestion)
+      .sort(compareInboxQuestions)
+      .map((item) => projectInboxQuestion(state, item)),
+  );
+}
+
+/** Select rich projections for the complete Inbox, including sent answers. */
+export function selectInboxQuestionProjections(
+  state: BoardState,
+): readonly InboxQuestionProjection[] {
+  return immutable(
+    [...state.questions.values()]
+      .filter(isInboxQuestion)
+      .sort(compareInboxQuestions)
+      .map((item) => projectInboxQuestion(state, item)),
+  );
+}
+
+/** Select one question detail without exposing state map or item aliases. */
+export function selectQuestionDetail(
+  state: BoardState,
+  questionId: QuestionId,
+): QuestionDetailProjection | undefined {
+  const item = state.questions.get(questionId);
+  return item === undefined ? undefined : immutable(projectQuestionDetail(state, item));
 }
 
 /** Select read-only terminal history, newest first, with deterministic truncation. */
@@ -266,6 +326,91 @@ function widgetUpdateRank(item: UpdateItem, completedCutoff: string): number | u
   if (item.kind === 'completed' && (item.completedAt ?? item.updatedAt) >= completedCutoff)
     return 6;
   return undefined;
+}
+
+function isActionableQuestion(item: QuestionItem): boolean {
+  return (
+    item.status === 'pending' ||
+    item.status === 'blocking' ||
+    item.status === 'delivery_failed' ||
+    item.status === 'needs_attention'
+  );
+}
+
+function isInboxQuestion(item: QuestionItem): boolean {
+  return (
+    isActionableQuestion(item) || item.status === 'answered' || item.status === 'delivery_queued'
+  );
+}
+
+function projectInboxQuestion(state: BoardState, item: QuestionItem): InboxQuestionProjection {
+  return {
+    ...projectQuestionDetail(state, item),
+    category: inboxCategory(item),
+  };
+}
+
+function projectQuestionDetail(state: BoardState, item: QuestionItem): QuestionDetailProjection {
+  const answer = item.answerId === undefined ? undefined : state.answers.get(item.answerId);
+  const acknowledgement =
+    item.answerId === undefined ? undefined : state.acknowledgements.get(item.answerId);
+  const latestDeliveryAttempt = answer?.deliveryAttempts.reduce<DeliveryAttempt | undefined>(
+    (latest, attempt) =>
+      latest === undefined || compareDeliveryAttempt(latest, attempt) < 0 ? attempt : latest,
+    undefined,
+  );
+  const userAnswerable = item.status === 'pending' || item.status === 'blocking';
+  return {
+    item,
+    statusChangedAt: item.updatedAt,
+    userAnswerable,
+    dismissible: userAnswerable,
+    retryableDelivery: item.status === 'delivery_failed',
+    deliveryPending: item.status === 'answered',
+    awaitingAcknowledgement: item.status === 'delivery_queued',
+    ...(item.status === 'delivery_failed' || item.status === 'needs_attention'
+      ? { attentionState: item.status }
+      : {}),
+    ...(answer === undefined ? {} : { answer }),
+    ...(acknowledgement === undefined ? {} : { acknowledgement }),
+    ...(latestDeliveryAttempt === undefined ? {} : { latestDeliveryAttempt }),
+    ...(item.status === 'stale'
+      ? {
+          stale: {
+            ...(item.staleReason === undefined ? {} : { reason: item.staleReason }),
+            ...(item.expiresAt === undefined ? {} : { originalExpiry: item.expiresAt }),
+            ...(item.staleAt === undefined ? {} : { staleAt: item.staleAt }),
+          },
+        }
+      : {}),
+  };
+}
+
+function compareDeliveryAttempt(left: DeliveryAttempt, right: DeliveryAttempt): number {
+  return (
+    left.attempt - right.attempt ||
+    asciiCompare(left.at, right.at) ||
+    asciiCompare(left.mode, right.mode) ||
+    asciiCompare(left.outcome, right.outcome)
+  );
+}
+
+function inboxCategory(item: QuestionItem): InboxQuestionCategory {
+  switch (item.status) {
+    case 'delivery_failed':
+      return 'delivery_failed';
+    case 'needs_attention':
+      return 'needs_attention';
+    case 'blocking':
+      return 'blocking';
+    case 'pending':
+      return item.priority === 'high' ? 'high_pending' : 'normal_pending';
+    case 'answered':
+    case 'delivery_queued':
+      return 'sent';
+    default:
+      throw new TypeError('Question is not in the Inbox.');
+  }
 }
 
 function inboxRank(item: QuestionItem): number {
