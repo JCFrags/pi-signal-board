@@ -52,6 +52,7 @@ export interface InboxRow extends BoardListRow {
   readonly entityType: 'question';
   readonly category: InboxQuestionProjection['category'];
   readonly userAnswerable: boolean;
+  readonly dismissible: boolean;
   readonly retryableDelivery: boolean;
   readonly awaitingAcknowledgement: boolean;
 }
@@ -393,6 +394,7 @@ function inboxRow(entry: InboxQuestionProjection, selectedId: string | undefined
     selected: entry.item.id === selectedId,
     category: entry.category,
     userAnswerable: entry.userAnswerable,
+    dismissible: entry.dismissible,
     retryableDelivery: entry.retryableDelivery,
     awaitingAcknowledgement: entry.awaitingAcknowledgement,
   };

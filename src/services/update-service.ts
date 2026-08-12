@@ -11,9 +11,16 @@ import {
   succeed,
 } from '../domain/errors.js';
 import type { UpdateArchivedEvent, UpdateUpsertedEvent } from '../domain/events.js';
-import type { CommandId, EventId, IdGenerator, ToolCommandId, UpdateId } from '../domain/ids.js';
+import type {
+  CommandId,
+  EventId,
+  IdGenerator,
+  ToolCommandId,
+  UiCommandId,
+  UpdateId,
+} from '../domain/ids.js';
 import { isCommandId, isUpdateId, updateDisplayId } from '../domain/ids.js';
-import { sameSemanticValue } from '../domain/invariants.js';
+import { isFiniteUtcTimestamp, sameSemanticValue } from '../domain/invariants.js';
 import { reduceBoardEvent } from '../domain/reducer.js';
 import { sanitizeText, TEXT_FIELD_POLICIES } from '../domain/sanitization.js';
 import type {
@@ -67,6 +74,14 @@ export interface ArchiveUpdateCommand {
   readonly expectedRevision?: number;
 }
 
+export interface ArchiveUpdateFromUiCommand {
+  readonly commandId: UiCommandId;
+  readonly id: string;
+  readonly expectedRevision: number;
+  readonly archivedAt: string;
+  readonly source: 'board';
+}
+
 export interface UpdateMutationResult {
   readonly item: UpdateItem;
   /** Present for accepted mutations and exact accepted-command retries. */
@@ -117,6 +132,10 @@ export class UpdateService {
 
   archiveUpdate(command: ArchiveUpdateCommand): Promise<Result<UpdateMutationResult>> {
     return this.#dependencies.queue.run(() => this.#archiveLocked(command));
+  }
+
+  archiveFromUi(command: ArchiveUpdateFromUiCommand): Promise<Result<UpdateMutationResult>> {
+    return this.#dependencies.queue.run(() => this.#archiveFromUiLocked(command));
   }
 
   async #upsertLocked(command: UpsertUpdateCommand): Promise<Result<UpdateMutationResult>> {
@@ -246,10 +265,61 @@ export class UpdateService {
     return this.#persistLocked(state, event, false);
   }
 
+  async #archiveFromUiLocked(
+    command: ArchiveUpdateFromUiCommand,
+  ): Promise<Result<UpdateMutationResult>> {
+    const commandError = validateUiCommandId(command.commandId);
+    if (commandError !== undefined) return commandError;
+    if (!isFiniteUtcTimestamp(command.archivedAt) || command.source !== 'board') {
+      return invalid('archive', 'invalid_value');
+    }
+    if (!Number.isSafeInteger(command.expectedRevision) || command.expectedRevision < 1) {
+      return invalid('expectedRevision', 'out_of_range');
+    }
+
+    const state = this.#dependencies.readState();
+    const prior = state.commandResults.get(command.commandId);
+    if (prior !== undefined) return this.#resolvePriorUiArchive(state, command, prior);
+    const lookup = resolveLookup(state, { id: command.id });
+    if (!lookup.ok) return lookup;
+    const existing = lookup.value.existing;
+    if (existing === undefined) return fail(signalBoardError('SB_NOT_FOUND'));
+    if (existing.archived) return succeed(frozenResult(existing, undefined, true));
+    if (command.expectedRevision !== existing.revision) {
+      return fail(signalBoardError('SB_REVISION_MISMATCH'));
+    }
+    if (existing.kind !== 'completed' && existing.kind !== 'failed') {
+      return fail(signalBoardError('SB_STATE_CONFLICT'));
+    }
+
+    let eventId: EventId;
+    try {
+      eventId = this.#reserveEventId();
+    } catch {
+      return fail(internalError());
+    }
+    const event = freezeCopy<UpdateArchivedEvent>({
+      schemaVersion: 1,
+      eventId,
+      eventType: 'update.archived',
+      occurredAt: command.archivedAt,
+      actor: 'user',
+      commandId: command.commandId,
+      payload: {
+        updateId: existing.id,
+        expectedRevision: command.expectedRevision,
+        revision: command.expectedRevision + 1,
+        archivedAt: command.archivedAt,
+      },
+    });
+    return this.#persistLocked(state, event, false, false);
+  }
+
   async #persistLocked(
     state: BoardState,
     event: UpdateEvent,
     createdUpdate: boolean,
+    commitRate = true,
   ): Promise<Result<UpdateMutationResult>> {
     const reduced = reduceBoardEvent(state, event);
     if (!reduced.ok) return fail(signalBoardError(reduced.code));
@@ -264,7 +334,7 @@ export class UpdateService {
     if (!appended.ok) return appended;
 
     this.#dependencies.swapState(reduced.state);
-    this.#dependencies.rateCounter.commit();
+    if (commitRate) this.#dependencies.rateCounter.commit();
     this.#reservedEventId = undefined;
     if (createdUpdate) this.#reservedUpdateId = undefined;
 
@@ -392,6 +462,29 @@ export class UpdateService {
     return succeed(frozenResult(current, event, true));
   }
 
+  #resolvePriorUiArchive(
+    state: BoardState,
+    command: ArchiveUpdateFromUiCommand,
+    prior: BoardState['commandResults'] extends ReadonlyMap<CommandId, infer Value> ? Value : never,
+  ): Result<UpdateMutationResult> {
+    if (prior.eventType !== 'update.archived') {
+      return fail(signalBoardError('SB_STATE_CONFLICT'));
+    }
+    const payload = prior.semanticPayload as UpdateArchivedEvent['payload'];
+    const current = state.updates.get(payload.updateId);
+    if (
+      current === undefined ||
+      !lookupMatchesPrior(command.id, undefined, current) ||
+      command.expectedRevision !== payload.expectedRevision ||
+      command.archivedAt !== payload.archivedAt ||
+      command.source !== 'board'
+    ) {
+      return fail(signalBoardError('SB_STATE_CONFLICT'));
+    }
+    const event = archiveEventFromPrior(command.commandId, prior.eventId, payload, 'user');
+    return succeed(frozenResult(current, event, true));
+  }
+
   #reserveEventId(): EventId {
     this.#reservedEventId ??= this.#dependencies.ids.event();
     return this.#reservedEventId;
@@ -479,6 +572,12 @@ function validateToolCommandId(commandId: string): Result<never> | undefined {
     : invalid('commandId', 'invalid_value');
 }
 
+function validateUiCommandId(commandId: string): Result<never> | undefined {
+  return isCommandId(commandId) && commandId.startsWith('ui:')
+    ? undefined
+    : invalid('commandId', 'invalid_value');
+}
+
 function lookupMatchesPrior(
   id: string | undefined,
   key: string | undefined,
@@ -540,13 +639,14 @@ function archiveEventFromPrior(
   commandId: CommandId,
   eventId: EventId,
   payload: UpdateArchivedEvent['payload'],
+  actor: 'agent' | 'user' = 'agent',
 ): UpdateArchivedEvent {
   return freezeCopy({
     schemaVersion: 1,
     eventId,
     eventType: 'update.archived',
     occurredAt: payload.archivedAt,
-    actor: 'agent',
+    actor,
     commandId,
     payload,
   });

@@ -301,7 +301,7 @@ function contextualFooter(
     const actions = ['Enter details'];
     if (row.userAnswerable) actions.push('A answer');
     if (row.userAnswerable && state.recommendationAvailable) actions.push('R recommendation');
-    if (row.userAnswerable) actions.push('X dismiss');
+    if (row.dismissible) actions.push('X dismiss');
     if (row.retryableDelivery) actions.push('Y retry delivery');
     return packLabels(actions, width);
   }

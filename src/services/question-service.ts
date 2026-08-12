@@ -12,11 +12,19 @@ import {
 import type {
   QuestionCancelledEvent,
   QuestionCreatedEvent,
+  QuestionDismissedEvent,
   QuestionRevisedEvent,
 } from '../domain/events.js';
-import type { CommandId, EventId, IdGenerator, QuestionId, ToolCommandId } from '../domain/ids.js';
+import type {
+  CommandId,
+  EventId,
+  IdGenerator,
+  QuestionId,
+  ToolCommandId,
+  UiCommandId,
+} from '../domain/ids.js';
 import { isCommandId, isQuestionId, questionDisplayId } from '../domain/ids.js';
-import { sameSemanticValue } from '../domain/invariants.js';
+import { isFiniteUtcTimestamp, sameSemanticValue } from '../domain/invariants.js';
 import { reduceBoardEvent } from '../domain/reducer.js';
 import { sanitizeText, TEXT_FIELD_POLICIES } from '../domain/sanitization.js';
 import { selectActionableQuestions } from '../domain/selectors.js';
@@ -31,7 +39,11 @@ import type { TurnQuestionRateCounter } from './question-rate-counter.js';
 
 const DISPLAY_ID = /^Q-[1-9][0-9]*$/u;
 
-type QuestionEvent = QuestionCreatedEvent | QuestionRevisedEvent | QuestionCancelledEvent;
+type QuestionEvent =
+  | QuestionCreatedEvent
+  | QuestionRevisedEvent
+  | QuestionCancelledEvent
+  | QuestionDismissedEvent;
 type SpecInput = Omit<
   QuestionSpec,
   | 'recommendedOptionIds'
@@ -67,6 +79,15 @@ export interface CancelQuestionCommand {
   readonly id: string;
   readonly expectedRevision: number;
   readonly reason: string;
+}
+
+export interface DismissQuestionCommand {
+  readonly commandId: UiCommandId;
+  readonly id: string;
+  readonly expectedRevision: number;
+  readonly dismissedAt: string;
+  readonly reason: 'user_dismissed';
+  readonly source: 'board';
 }
 
 export interface QuestionMutationResult {
@@ -112,6 +133,10 @@ export class QuestionService {
 
   cancelQuestion(command: CancelQuestionCommand): Promise<Result<QuestionMutationResult>> {
     return this.#dependencies.queue.run(() => this.#cancelLocked(command));
+  }
+
+  dismissQuestion(command: DismissQuestionCommand): Promise<Result<QuestionMutationResult>> {
+    return this.#dependencies.queue.run(() => this.#dismissLocked(command));
   }
 
   async #createLocked(command: CreateQuestionCommand): Promise<Result<QuestionMutationResult>> {
@@ -271,10 +296,60 @@ export class QuestionService {
     return this.#persistLocked(state, event, false);
   }
 
+  async #dismissLocked(command: DismissQuestionCommand): Promise<Result<QuestionMutationResult>> {
+    const basic = validateUserMutationCommand(
+      command.commandId,
+      command.id,
+      command.expectedRevision,
+    );
+    if (!basic.ok) return basic;
+    if (
+      !isFiniteUtcTimestamp(command.dismissedAt) ||
+      command.reason !== 'user_dismissed' ||
+      command.source !== 'board'
+    ) {
+      return invalid('dismissal', 'invalid_value');
+    }
+
+    const state = this.#dependencies.readState();
+    const prior = state.commandResults.get(command.commandId);
+    if (prior !== undefined) return this.#resolvePriorDismiss(state, command, prior);
+    const current = resolveQuestion(state, command.id);
+    if (!current.ok) return current;
+    if (current.value === undefined) return fail(signalBoardError('SB_NOT_FOUND'));
+    if (command.expectedRevision !== current.value.revision) {
+      return fail(signalBoardError('SB_REVISION_MISMATCH'));
+    }
+    if (!isAnswerable(current.value)) return fail(signalBoardError('SB_STATE_CONFLICT'));
+
+    let eventId: EventId;
+    try {
+      eventId = this.#reserveEventId();
+    } catch {
+      return fail(internalError());
+    }
+    const event = freezeCopy<QuestionDismissedEvent>({
+      schemaVersion: 1,
+      eventId,
+      eventType: 'question.dismissed',
+      occurredAt: command.dismissedAt,
+      actor: 'user',
+      commandId: command.commandId,
+      payload: {
+        questionId: current.value.id,
+        expectedRevision: command.expectedRevision,
+        revision: command.expectedRevision + 1,
+        dismissedAt: command.dismissedAt,
+      },
+    });
+    return this.#persistLocked(state, event, false, false);
+  }
+
   async #persistLocked(
     state: BoardState,
     event: QuestionEvent,
     created: boolean,
+    commitRate = true,
   ): Promise<Result<QuestionMutationResult>> {
     const reduced = reduceBoardEvent(state, event);
     if (!reduced.ok) return fail(signalBoardError(reduced.code));
@@ -289,7 +364,7 @@ export class QuestionService {
     if (!appended.ok) return appended;
 
     this.#dependencies.swapState(reduced.state);
-    this.#dependencies.rateCounter.commit();
+    if (commitRate) this.#dependencies.rateCounter.commit();
     this.#reservedEventId = undefined;
     if (created) this.#reservedQuestionId = undefined;
 
@@ -379,6 +454,30 @@ export class QuestionService {
     return succeed(frozenResult(current, event, true));
   }
 
+  #resolvePriorDismiss(
+    state: BoardState,
+    command: DismissQuestionCommand,
+    prior: CommandResult,
+  ): Result<QuestionMutationResult> {
+    if (prior.eventType !== 'question.dismissed') {
+      return fail(signalBoardError('SB_STATE_CONFLICT'));
+    }
+    const payload = prior.semanticPayload as QuestionDismissedEvent['payload'];
+    const current = state.questions.get(payload.questionId);
+    if (
+      current === undefined ||
+      !lookupMatches(command.id, current) ||
+      command.expectedRevision !== payload.expectedRevision ||
+      command.dismissedAt !== payload.dismissedAt ||
+      command.reason !== 'user_dismissed' ||
+      command.source !== 'board'
+    ) {
+      return fail(signalBoardError('SB_STATE_CONFLICT'));
+    }
+    const event = dismissedEventFromPrior(command.commandId, prior.eventId, payload);
+    return succeed(frozenResult(current, event, true));
+  }
+
   #normalizeCreate(command: CreateQuestionCommand, now: string): Result<QuestionSpec> {
     return normalizeCreateQuestionSpec(command, {
       config: this.#dependencies.config,
@@ -449,6 +548,23 @@ function validateToolCommandId(commandId: string): Result<never> | undefined {
     : invalid('commandId', 'invalid_value');
 }
 
+function validateUserMutationCommand(
+  commandId: string,
+  id: string,
+  expectedRevision: number,
+): Result<void> {
+  if (!isCommandId(commandId) || !commandId.startsWith('ui:')) {
+    return invalid('commandId', 'invalid_value');
+  }
+  if (typeof id !== 'string' || (!isQuestionId(id) && !DISPLAY_ID.test(id))) {
+    return invalid('id', 'invalid_value');
+  }
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) {
+    return invalid('expectedRevision', 'out_of_range');
+  }
+  return succeed(undefined);
+}
+
 function isAnswerable(item: QuestionItem): boolean {
   return (item.status === 'pending' || item.status === 'blocking') && item.answerId === undefined;
 }
@@ -504,6 +620,22 @@ function revisedEventFromPrior(
     eventType: 'question.revised',
     occurredAt: payload.updatedAt,
     actor: 'agent',
+    commandId,
+    payload,
+  });
+}
+
+function dismissedEventFromPrior(
+  commandId: CommandId,
+  eventId: EventId,
+  payload: QuestionDismissedEvent['payload'],
+): QuestionDismissedEvent {
+  return freezeCopy({
+    schemaVersion: 1,
+    eventId,
+    eventType: 'question.dismissed',
+    occurredAt: payload.dismissedAt,
+    actor: 'user',
     commandId,
     payload,
   });

@@ -5,6 +5,7 @@ import type {
 } from '@earendil-works/pi-coding-agent';
 
 import { COMMAND_INVOCATION, COMMAND_NAME, PRODUCT_ID } from '../constants.js';
+import { fail, signalBoardError } from '../domain/errors.js';
 import { selectSummary } from '../domain/selectors.js';
 import { formatDoctorReport } from '../integration/doctor.js';
 import type { RuntimeLifecycle } from '../integration/lifecycle.js';
@@ -13,6 +14,11 @@ import { type SignalBoardAction, SignalBoardComponent } from '../ui/board/compon
 import { type BoardTab, buildBoardViewModel } from '../ui/board/model.js';
 import { collectAnswerIntent, collectRecommendationIntent } from './answer-actions.js';
 import { parseSignalBoardCommand } from './command-parser.js';
+import {
+  type ConfirmedMutationResult,
+  confirmArchiveUpdate,
+  confirmDismissQuestion,
+} from './dismiss-archive-actions.js';
 import type { ShortcutAvailability } from './shortcut-registration.js';
 
 const COMMAND_PATTERN = /^signalboard(?::[1-9][0-9]*)?$/u;
@@ -257,6 +263,56 @@ async function openBoard(
       continue;
     }
 
+    if (action.type === 'dismiss' || action.type === 'archive_update') {
+      const runtime = dependencies.lifecycle.slot.current();
+      const ids = runtime?.ids;
+      const result =
+        action.type === 'dismiss'
+          ? await confirmDismissQuestion({
+              context,
+              question:
+                snapshot.value.model.tabs.inbox.detailsById[action.entityId]?.projection.item,
+              expectedRevision: action.expectedRevision,
+              now: dependencies.now,
+              commandId: () => {
+                if (ids === undefined) throw new Error('UI command IDs are unavailable.');
+                return ids.command();
+              },
+              dismissQuestion: async (command) => {
+                const current = dependencies.lifecycle.slot.current();
+                if (!sameRuntimeGuard(current, snapshot.value.guard)) {
+                  return fail(signalBoardError('SB_STATE_CONFLICT'));
+                }
+                const service = current.questionService;
+                return service === undefined
+                  ? fail(signalBoardError('SB_NOT_INITIALIZED'))
+                  : service.dismissQuestion(command);
+              },
+            })
+          : await confirmArchiveUpdate({
+              context,
+              update: snapshot.value.model.tabs.updates.detailsById[action.entityId]?.item,
+              expectedRevision: action.expectedRevision,
+              now: dependencies.now,
+              commandId: () => {
+                if (ids === undefined) throw new Error('UI command IDs are unavailable.');
+                return ids.command();
+              },
+              archiveFromUi: async (command) => {
+                const current = dependencies.lifecycle.slot.current();
+                if (!sameRuntimeGuard(current, snapshot.value.guard)) {
+                  return fail(signalBoardError('SB_STATE_CONFLICT'));
+                }
+                const service = current.updateService;
+                return service === undefined
+                  ? fail(signalBoardError('SB_NOT_INITIALIZED'))
+                  : service.archiveFromUi(command);
+              },
+            });
+      emitConfirmedMutationResult(context, dependencies, action.type, result);
+      continue;
+    }
+
     dependencies.emit(
       context,
       'Signal Board action is not available in this build (SB_UI_UNAVAILABLE). No state changed.',
@@ -338,6 +394,35 @@ function hasCustomUi(context: ExtensionContext): boolean {
   } catch {
     return false;
   }
+}
+
+function sameRuntimeGuard(
+  runtime: SignalBoardRuntime | undefined,
+  guard: {
+    readonly generation: number;
+    readonly identityToken: string;
+    readonly treeRevision: number;
+  },
+): runtime is SignalBoardRuntime {
+  return (
+    runtime !== undefined &&
+    !runtime.disposed &&
+    runtime.status === 'healthy' &&
+    runtime.generation === guard.generation &&
+    runtime.identity.token === guard.identityToken &&
+    runtime.treeRevision === guard.treeRevision
+  );
+}
+
+function emitConfirmedMutationResult(
+  context: ExtensionContext,
+  dependencies: SignalBoardCommandDependencies,
+  action: 'dismiss' | 'archive_update',
+  result: ConfirmedMutationResult,
+): void {
+  if (result.kind === 'success' || result.kind === 'cancelled') return;
+  const label = action === 'dismiss' ? 'Dismissal' : 'Archive';
+  dependencies.emit(context, `${label} unavailable (${result.code}). No state changed.`);
 }
 
 function recordUiFailure(runtime: SignalBoardRuntime | undefined, now: () => Date): void {

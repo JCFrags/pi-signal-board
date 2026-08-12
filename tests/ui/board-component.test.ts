@@ -437,6 +437,20 @@ describe('SB-027 board component input boundary', () => {
     ]);
   });
 
+  it('returns one action when an action key is activated more than once', () => {
+    const dismissal = component(model({ question: question('pending') }));
+    dismissal.board.handleInput('x');
+    dismissal.board.handleInput('x');
+    expect(dismissal.actions).toEqual([
+      { type: 'dismiss', tab: 'inbox', entityId: QID, expectedRevision: 4 },
+    ]);
+
+    const archive = component(model({ update: update() }, 'updates'));
+    archive.board.handleInput('h');
+    archive.board.handleInput('h');
+    expect(archive.actions).toHaveLength(1);
+  });
+
   it('returns retry with the stable answer ID and update archive with revision metadata', () => {
     const retry = component(model({ question: question('delivery_failed'), answer: answer() }));
     retry.board.handleInput('y');

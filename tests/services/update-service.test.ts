@@ -627,4 +627,73 @@ describe('UpdateService', () => {
     expect(noLookup).toMatchObject({ ok: false, error: { code: 'SB_INVALID_ARGUMENT' } });
     expect(test.ids).toMatchObject({ eventCalls: 0, updateCalls: 0 });
   });
+
+  it.each(['completed', 'failed'] as const)(
+    'archives a %s update through the user boundary with the caller timestamp',
+    async (kind) => {
+      const test = harness();
+      const terminal = resultValue(
+        await test.service.upsertUpdate(upsert(`create-${kind}`, { kind })),
+      ).item;
+      const result = resultValue(
+        await test.service.archiveFromUi({
+          commandId: `ui:00000000-0000-4000-8000-0000000000${kind === 'completed' ? '34' : '35'}`,
+          id: terminal.id,
+          expectedRevision: terminal.revision,
+          archivedAt: '2026-08-12T11:00:00.000Z',
+          source: 'board',
+        }),
+      );
+
+      expect(result.item).toMatchObject({
+        id: terminal.id,
+        archived: true,
+        revision: 2,
+        archivedAt: '2026-08-12T11:00:00.000Z',
+      });
+      expect(result.event).toMatchObject({
+        eventType: 'update.archived',
+        occurredAt: '2026-08-12T11:00:00.000Z',
+        actor: 'user',
+        payload: {
+          updateId: terminal.id,
+          expectedRevision: 1,
+          revision: 2,
+          archivedAt: '2026-08-12T11:00:00.000Z',
+        },
+      });
+      expect(test.rateCounter.committed).toBe(1);
+    },
+  );
+
+  it('rejects active and stale UI archive and preserves state on persistence failure', async () => {
+    const test = harness();
+    const active = resultValue(await test.service.upsertUpdate(upsert('ui-active'))).item;
+    const command = {
+      commandId: 'ui:00000000-0000-4000-8000-000000000036' as const,
+      id: active.id,
+      expectedRevision: active.revision,
+      archivedAt: '2026-08-12T11:00:00.000Z',
+      source: 'board' as const,
+    };
+    expect(await test.service.archiveFromUi(command)).toMatchObject({
+      ok: false,
+      error: { code: 'SB_STATE_CONFLICT' },
+    });
+    const terminal = resultValue(
+      await test.service.upsertUpdate(upsert('ui-terminal', { kind: 'completed' })),
+    ).item;
+    expect(
+      await test.service.archiveFromUi({ ...command, id: terminal.id, expectedRevision: 1 }),
+    ).toMatchObject({ ok: false, error: { code: 'SB_REVISION_MISMATCH' } });
+    test.setAppend('failure');
+    expect(
+      await test.service.archiveFromUi({
+        ...command,
+        id: terminal.id,
+        expectedRevision: terminal.revision,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'SB_PERSISTENCE_FAILED' } });
+    expect(test.state().updates.get(terminal.id)?.archived).toBe(false);
+  });
 });

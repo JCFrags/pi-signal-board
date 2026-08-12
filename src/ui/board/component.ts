@@ -154,7 +154,7 @@ export class SignalBoardComponent {
         this.finish(questionAction('answer', row));
       } else if (key === 'r' && row.userAnswerable && this.hasValidRecommendation(row)) {
         this.finish(questionAction('accept_recommendation', row));
-      } else if (key === 'x' && row.userAnswerable) {
+      } else if (key === 'x' && row.dismissible) {
         this.finish(questionAction('dismiss', row));
       } else if (key === 'y' && row.retryableDelivery) {
         const answerId = this.answerIdFor(row);

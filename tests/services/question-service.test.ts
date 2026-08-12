@@ -8,6 +8,7 @@ import { fail, signalBoardError, succeed } from '../../src/domain/errors.js';
 import type {
   QuestionCancelledEvent,
   QuestionCreatedEvent,
+  QuestionDismissedEvent,
   QuestionRevisedEvent,
 } from '../../src/domain/events.js';
 import type { EventId, IdGenerator, QuestionId } from '../../src/domain/ids.js';
@@ -23,7 +24,11 @@ import {
 } from '../../src/services/question-service.js';
 import { createDeferred } from '../helpers/deferred.js';
 
-type QuestionEvent = QuestionCreatedEvent | QuestionRevisedEvent | QuestionCancelledEvent;
+type QuestionEvent =
+  | QuestionCreatedEvent
+  | QuestionRevisedEvent
+  | QuestionCancelledEvent
+  | QuestionDismissedEvent;
 
 class ServiceIds implements Pick<IdGenerator, 'event' | 'question'> {
   eventCalls = 0;
@@ -729,5 +734,65 @@ describe('QuestionService', () => {
     for (const result of await Promise.all(cases)) expect(code(result)).toBe('SB_INVALID_ARGUMENT');
     expect(test.events).toHaveLength(1);
     expect(test.rateCounter.committed).toBe(1);
+  });
+
+  it('dismisses through the user boundary with exact revision and caller timestamp', async () => {
+    const test = harness();
+    const created = value(await test.service.createQuestion(create('dismiss-create'))).item;
+    const result = value(
+      await test.service.dismissQuestion({
+        commandId: 'ui:00000000-0000-4000-8000-000000000034',
+        id: created.id,
+        expectedRevision: 1,
+        dismissedAt: '2026-08-12T11:00:00.000Z',
+        reason: 'user_dismissed',
+        source: 'board',
+      }),
+    );
+
+    expect(result.item).toMatchObject({
+      id: created.id,
+      status: 'dismissed',
+      revision: 2,
+      dismissedAt: '2026-08-12T11:00:00.000Z',
+    });
+    expect(result.event).toEqual({
+      schemaVersion: 1,
+      eventId: 'evt_00000000-0000-4000-8000-000000000002',
+      eventType: 'question.dismissed',
+      occurredAt: '2026-08-12T11:00:00.000Z',
+      actor: 'user',
+      commandId: 'ui:00000000-0000-4000-8000-000000000034',
+      payload: {
+        questionId: created.id,
+        expectedRevision: 1,
+        revision: 2,
+        dismissedAt: '2026-08-12T11:00:00.000Z',
+      },
+    });
+    expect(test.rateCounter.committed).toBe(1);
+  });
+
+  it('keeps dismissal retryable after stale revision, invalid state, and persistence failure', async () => {
+    const test = harness();
+    const created = value(await test.service.createQuestion(create('dismiss-errors'))).item;
+    const base = {
+      commandId: 'ui:00000000-0000-4000-8000-000000000035' as const,
+      id: created.id,
+      expectedRevision: 1,
+      dismissedAt: '2026-08-12T11:00:00.000Z',
+      reason: 'user_dismissed' as const,
+      source: 'board' as const,
+    };
+    expect(code(await test.service.dismissQuestion({ ...base, expectedRevision: 2 }))).toBe(
+      'SB_REVISION_MISMATCH',
+    );
+    test.replaceQuestion(withStatus(created, 'stale'));
+    expect(code(await test.service.dismissQuestion(base))).toBe('SB_STATE_CONFLICT');
+    test.replaceQuestion(created);
+    test.setAppend('failure');
+    expect(code(await test.service.dismissQuestion(base))).toBe('SB_PERSISTENCE_FAILED');
+    expect(test.state().questions.get(created.id)?.status).toBe('pending');
+    expect(test.events).toHaveLength(1);
   });
 });

@@ -295,6 +295,128 @@ describe('SB-028 command boundary', () => {
     expect(harness.sendCalls).toHaveLength(0);
   });
 
+  it('wires confirmed dismissal once, refreshes the board, sends nothing, and moves Q-1 to History', async () => {
+    const harness = new FakePiHarness();
+    harness.replaceBranch([
+      makeCustomEntry({ id: 'question-entry', data: schemaPositiveEvents[1] }),
+    ]);
+    register(harness);
+    await harness.dispatch('session_start');
+    harness.queueUiResult('custom', {
+      type: 'dismiss',
+      tab: 'inbox',
+      entityId: 'qst_22222222-2222-4222-8222-222222222222',
+      expectedRevision: 1,
+    });
+    harness.queueUiResult('confirm', true);
+
+    await commandHandler(harness)('', harness.context() as ExtensionCommandContext);
+
+    expect(harness.appendCalls).toHaveLength(1);
+    expect(harness.appendCalls[0]?.data).toMatchObject({
+      eventType: 'question.dismissed',
+      occurredAt: NOW,
+      actor: 'user',
+      payload: {
+        questionId: 'qst_22222222-2222-4222-8222-222222222222',
+        expectedRevision: 1,
+        revision: 2,
+        dismissedAt: NOW,
+      },
+    });
+    expect(harness.uiCalls.filter((call) => call.surface === 'custom')).toHaveLength(2);
+    expect(harness.sendCalls).toHaveLength(0);
+
+    const captures: string[] = [];
+    await commandHandler(harness)('history', interactiveContext(harness, captures));
+    expect(captures[0]).toContain('[DISMISSED] Q-1');
+    expect(captures[0]).not.toContain('[Inbox 1]');
+  });
+
+  it.each(['completed', 'failed'] as const)(
+    'wires confirmed %s update archive once and moves U-1 to History',
+    async (kind) => {
+      const harness = new FakePiHarness();
+      const base = schemaPositiveEvents[0];
+      const event = {
+        ...base,
+        occurredAt: NOW,
+        payload: {
+          ...base.payload,
+          createdAt: NOW,
+          updatedAt: NOW,
+          completedAt: NOW,
+          fields: { ...base.payload.fields, kind, stage: 'complete' },
+        },
+      };
+      harness.replaceBranch([makeCustomEntry({ id: 'update-entry', data: event })]);
+      register(harness);
+      await harness.dispatch('session_start');
+      harness.queueUiResult('custom', {
+        type: 'archive_update',
+        tab: 'updates',
+        entityId: 'upd_11111111-1111-4111-8111-111111111111',
+        expectedRevision: 1,
+      });
+      harness.queueUiResult('confirm', true);
+
+      await commandHandler(harness)('updates', harness.context() as ExtensionCommandContext);
+
+      expect(harness.appendCalls).toHaveLength(1);
+      expect(harness.appendCalls[0]?.data).toMatchObject({
+        eventType: 'update.archived',
+        occurredAt: NOW,
+        actor: 'user',
+        payload: {
+          updateId: 'upd_11111111-1111-4111-8111-111111111111',
+          expectedRevision: 1,
+          revision: 2,
+          archivedAt: NOW,
+        },
+      });
+      expect(harness.uiCalls.filter((call) => call.surface === 'custom')).toHaveLength(2);
+      expect(harness.sendCalls).toHaveLength(0);
+
+      const captures: string[] = [];
+      await commandHandler(harness)('history', interactiveContext(harness, captures));
+      expect(captures[0]).toContain('[ARCHIVED] U-1');
+    },
+  );
+
+  it('rejects a session-tree replacement during confirmation without mutation', async () => {
+    const harness = new FakePiHarness();
+    harness.replaceBranch([
+      makeCustomEntry({ id: 'question-entry', data: schemaPositiveEvents[1] }),
+    ]);
+    register(harness);
+    await harness.dispatch('session_start');
+    harness.queueUiResult('custom', {
+      type: 'dismiss',
+      tab: 'inbox',
+      entityId: 'qst_22222222-2222-4222-8222-222222222222',
+      expectedRevision: 1,
+    });
+    const base = harness.context() as ExtensionCommandContext;
+    const context = {
+      ...base,
+      ui: {
+        ...base.ui,
+        confirm: async () => {
+          await harness.dispatch('session_tree');
+          return true;
+        },
+      },
+    } as ExtensionCommandContext;
+
+    await commandHandler(harness)('', context);
+
+    expect(lastNotice(harness)).toBe(
+      'Dismissal unavailable (SB_STATE_CONFLICT). No state changed.',
+    );
+    expect(harness.appendCalls).toHaveLength(0);
+    expect(harness.sendCalls).toHaveLength(0);
+  });
+
   it('returns a stable unavailable result for later mutation actions without service calls', async () => {
     const harness = new FakePiHarness();
     register(harness);
