@@ -60,8 +60,12 @@ function refresh(
   };
 }
 
+function surfaceCalls(harness: FakePiHarness, surface: string) {
+  return harness.uiCalls.filter((call) => call.surface === surface);
+}
+
 function lastSurface(harness: FakePiHarness, surface: string): readonly unknown[] | undefined {
-  return harness.uiCalls.filter((call) => call.surface === surface).at(-1)?.args;
+  return surfaceCalls(harness, surface).at(-1)?.args;
 }
 
 function renderInstalledWidget(harness: FakePiHarness, width: number): string[] {
@@ -251,6 +255,28 @@ describe('Signal Board UI adapter', () => {
     adapter.refresh(active);
     expect(harness.uiCalls).toHaveLength(callsAfterClear);
     expect(diagnostics.count()).toBe(0);
+  });
+
+  it('clears active surfaces without preventing a later refresh', () => {
+    const harness = new FakePiHarness();
+    const adapter = createSignalBoardUiAdapter(harness.context(), createDiagnostics());
+    const active = refresh(widgetState({ updates: [widgetUpdate(1, 'working', 1)] }));
+    adapter.refresh(active);
+
+    const widgetCallsBeforeClear = surfaceCalls(harness, 'setWidget').length;
+    const statusCallsBeforeClear = surfaceCalls(harness, 'setStatus').length;
+    adapter.clear();
+    expect(surfaceCalls(harness, 'setWidget')).toHaveLength(widgetCallsBeforeClear + 1);
+    expect(surfaceCalls(harness, 'setStatus')).toHaveLength(statusCallsBeforeClear + 1);
+    expect(lastSurface(harness, 'setWidget')?.[1]).toBeUndefined();
+    expect(lastSurface(harness, 'setStatus')?.[1]).toBeUndefined();
+
+    adapter.clear();
+    expect(surfaceCalls(harness, 'setWidget')).toHaveLength(widgetCallsBeforeClear + 1);
+    expect(surfaceCalls(harness, 'setStatus')).toHaveLength(statusCallsBeforeClear + 1);
+    adapter.refresh(active);
+    expect(typeof lastSurface(harness, 'setWidget')?.[1]).toBe('function');
+    expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signal: 0Q 1U');
   });
 
   it('clears disabled state and makes direct disposal idempotent', () => {

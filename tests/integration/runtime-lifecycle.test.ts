@@ -601,6 +601,40 @@ describe('runtime lifecycle', () => {
     expect(statusCalls.every((call) => call.args[1] === undefined)).toBe(true);
   });
 
+  it('uses exact fallback clearing when terminal adapter disposal throws', async () => {
+    const harness = new FakePiHarness();
+    const lifecycle = register(harness);
+    await harness.dispatch('session_start');
+    const runtime = lifecycle.slot.current();
+    if (!runtime) throw new Error('Expected an active runtime.');
+    let disposals = 0;
+    runtime.ui = {
+      refresh() {},
+      clear() {},
+      dispose() {
+        disposals += 1;
+        throw new Error('PRIVATE disposal detail');
+      },
+    };
+    const widgetCallsBeforeShutdown = harness.uiCalls.filter(
+      (call) => call.surface === 'setWidget',
+    ).length;
+    const statusCallsBeforeShutdown = harness.uiCalls.filter(
+      (call) => call.surface === 'setStatus',
+    ).length;
+
+    await harness.dispatch('session_shutdown');
+    expect(disposals).toBe(1);
+    expect(harness.uiCalls.filter((call) => call.surface === 'setWidget')).toHaveLength(
+      widgetCallsBeforeShutdown + 1,
+    );
+    expect(harness.uiCalls.filter((call) => call.surface === 'setStatus')).toHaveLength(
+      statusCallsBeforeShutdown + 1,
+    );
+    expect(runtime.diagnostics.count('SB_UI_UNAVAILABLE')).toBe(1);
+    expect(JSON.stringify(runtime.diagnostics.snapshot())).not.toContain('PRIVATE');
+  });
+
   it('shutdown is terminal, clears timer and surfaces, and removes only its generation', async () => {
     const harness = new FakePiHarness();
     const lifecycle = register(harness, { hooks: timerHooks(harness, []) });

@@ -18,7 +18,7 @@ interface RegisteredUpdateTool {
   execute(id: string, input: UpdateToolInput): Promise<unknown>;
 }
 
-function setup(harness = new FakePiHarness()) {
+function setup(harness = new FakePiHarness(), injectedRefresh?: () => void) {
   let lifecycle: RuntimeLifecycle | undefined;
   const hookOrder: string[] = [];
   createSignalBoardExtension({
@@ -34,6 +34,7 @@ function setup(harness = new FakePiHarness()) {
     hooks: {
       refreshLocked() {
         hookOrder.push('injected-refresh');
+        injectedRefresh?.();
       },
     },
     captureLifecycle(value) {
@@ -95,6 +96,42 @@ describe('runtime-owned UI adapter wiring', () => {
     expect(surfaceCalls(test.harness, 'setWidget').at(-1)?.args[1]).toBeUndefined();
     expect(surfaceCalls(test.harness, 'setStatus').at(-1)?.args[1]).toBeUndefined();
     expect(test.hookOrder).toEqual(['injected-refresh', 'injected-refresh', 'injected-refresh']);
+  });
+
+  it('clears a transient refresh failure and renders again with the same adapter', async () => {
+    let failRefresh = false;
+    const test = setup(new FakePiHarness(), () => {
+      if (failRefresh) throw new Error('PRIVATE transient refresh detail');
+    });
+    await test.harness.dispatch('session_start');
+    await test.tool.execute('before-failure', {
+      operation: 'upsert',
+      key: 'recoverable',
+      kind: 'working',
+      title: 'Recoverable fixture',
+    });
+    const adapter = test.lifecycle.slot.current()?.ui;
+    expect(adapter).toBeDefined();
+    expect(installedLines(test.harness).join('\n')).toContain('[WORKING] U-1');
+
+    const widgetCallsBeforeFailure = surfaceCalls(test.harness, 'setWidget').length;
+    const statusCallsBeforeFailure = surfaceCalls(test.harness, 'setStatus').length;
+    failRefresh = true;
+    await test.harness.dispatch('session_tree');
+    expect(test.lifecycle.slot.current()?.ui).toBe(adapter);
+    expect(surfaceCalls(test.harness, 'setWidget')).toHaveLength(widgetCallsBeforeFailure + 1);
+    expect(surfaceCalls(test.harness, 'setStatus')).toHaveLength(statusCallsBeforeFailure + 1);
+    expect(surfaceCalls(test.harness, 'setWidget').at(-1)?.args[1]).toBeUndefined();
+    expect(surfaceCalls(test.harness, 'setStatus').at(-1)?.args[1]).toBeUndefined();
+
+    failRefresh = false;
+    await test.harness.dispatch('agent_settled');
+    expect(test.lifecycle.slot.current()?.ui).toBe(adapter);
+    expect(installedLines(test.harness).join('\n')).toContain('[WORKING] U-1');
+    expect(surfaceCalls(test.harness, 'setStatus').at(-1)?.args[1]).toBe('Signal: 0Q 1U 1 new');
+    const diagnostics = test.lifecycle.slot.current()?.diagnostics.snapshot();
+    expect(diagnostics?.counts.SB_UI_UNAVAILABLE).toBe(1);
+    expect(JSON.stringify(diagnostics)).not.toContain('PRIVATE');
   });
 
   it('clears replacement and shutdown surfaces and installs only one adapter per runtime', async () => {

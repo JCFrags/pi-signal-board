@@ -18,6 +18,7 @@ export interface UiAdapterRefresh {
 
 export interface SignalBoardUiAdapter {
   refresh(input: UiAdapterRefresh): void;
+  clear(): void;
   dispose(): void;
 }
 
@@ -60,6 +61,11 @@ class RuntimeUiAdapter implements SignalBoardUiAdapter {
 
     this.refreshWidget(input);
     this.refreshStatus(input);
+  }
+
+  clear(): void {
+    if (this.#disposed) return;
+    this.clearInstalledSurfaces();
   }
 
   dispose(): void {
