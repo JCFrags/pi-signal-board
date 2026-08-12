@@ -228,6 +228,8 @@ export interface AcknowledgementRecordEvent {
 export interface AnswerAcknowledgement extends AcknowledgementRecordEvent {
   readonly eventId: EventId;
   readonly commandId: CommandId;
+  /** Stable derived sequence for outcomes that produce a Decision. */
+  readonly decisionDisplayId?: DecisionDisplayId;
 }
 
 export interface UpdateItem extends UpdateFields {
@@ -256,6 +258,10 @@ export interface QuestionItem extends QuestionSpec {
   readonly dismissedAt?: IsoTimestamp;
   readonly resolvedAt?: IsoTimestamp;
   readonly answerId?: AnswerId;
+  /** Replay-safe detail for the latest specification revision. */
+  readonly revisionSummary?: string;
+  readonly cancelReason?: string;
+  readonly staleReason?: string;
   readonly lastEventId: EventId;
   readonly lastCommandId: CommandId;
 }
@@ -268,6 +274,8 @@ export interface DecisionRecord {
   readonly question: string;
   readonly answer: AnswerValue;
   readonly recommendation?: string;
+  readonly actor: 'user';
+  readonly reason: string;
   readonly acknowledgement: AnswerAcknowledgement;
   readonly decidedAt: IsoTimestamp;
   readonly resolvedAt: IsoTimestamp;
@@ -344,6 +352,8 @@ export interface BoardState {
   readonly answers: ReadonlyMap<AnswerId, AnswerRecord>;
   readonly acknowledgements: ReadonlyMap<AnswerId, AnswerAcknowledgement>;
   readonly commandResults: ReadonlyMap<CommandId, IdempotentCommandResult>;
+  /** Canonical accepted event content keyed by event ID for collision detection. */
+  readonly acceptedEventIds: ReadonlyMap<EventId, string>;
   readonly lastViewedAt?: IsoTimestamp;
   readonly resetEventId?: EventId;
   readonly counters: {
