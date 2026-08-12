@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible Signal Board defect
+title: "[bug] "
+labels: ["type:bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Signal Board, Pi, and Node versions
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed and expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction using synthetic data
+    validations:
+      required: true
+  - type: dropdown
+    id: persistence
+    attributes:
+      label: Session type
+      options: [persistent, ephemeral, unknown]
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Redacted /signalboard doctor output
+      description: Remove prompt, answer, secret, and private path content.

@@ -1,0 +1,6 @@
+* @maintainers
+/src/domain/ @maintainers
+/src/persistence/ @maintainers
+/schemas/ @maintainers
+/.github/workflows/ @maintainers
+/SECURITY.md @maintainers

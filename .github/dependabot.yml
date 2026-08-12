@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    groups:
+      test-toolchain:
+        patterns:
+          - vitest
+          - '@vitest/*'
+      pi-host:
+        patterns:
+          - '@earendil-works/pi-*'
+          - typebox
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
