@@ -10,6 +10,9 @@ import {
 } from '../../domain/errors.js';
 import { isFiniteUtcTimestamp, validAnswerValue } from '../../domain/invariants.js';
 import { sanitizeText, TEXT_FIELD_POLICIES, type TextPolicy } from '../../domain/sanitization.js';
+
+export { guardUnsafeQuestion } from '../unsafe-question.js';
+
 import type {
   AnswerValue,
   BlockingPolicy,
