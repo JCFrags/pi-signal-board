@@ -1,3 +1,4 @@
+import { StringEnum } from '@earendil-works/pi-ai';
 import type { ExtensionAPI, ToolResultEvent } from '@earendil-works/pi-coding-agent';
 import { Text, truncateToWidth } from '@earendil-works/pi-tui';
 import { type Static, type TSchema, Type } from 'typebox';
@@ -12,11 +13,6 @@ import type {
   UpdateMutationResult,
   UpsertUpdateCommand,
 } from '../services/update-service.js';
-
-/** Local equivalent of Pi's StringEnum helper. It emits one Google-compatible enum schema. */
-function StringEnum<const Values extends readonly string[]>(values: Values) {
-  return Type.Unsafe<Values[number]>({ type: 'string', enum: [...values] });
-}
 
 function oneOf<const Schemas extends readonly TSchema[]>(schemas: Schemas) {
   return Type.Unsafe<Static<Schemas[number]>>({ oneOf: schemas });
