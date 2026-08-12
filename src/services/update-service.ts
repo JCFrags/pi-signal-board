@@ -135,7 +135,12 @@ export class UpdateService {
   }
 
   archiveFromUi(command: ArchiveUpdateFromUiCommand): Promise<Result<UpdateMutationResult>> {
-    return this.#dependencies.queue.run(() => this.#archiveFromUiLocked(command));
+    return this.#dependencies.queue.run(() => this.archiveFromUiLocked(command));
+  }
+
+  /** Use only while the shared runtime mutation queue is already held. */
+  archiveFromUiLocked(command: ArchiveUpdateFromUiCommand): Promise<Result<UpdateMutationResult>> {
+    return this.#archiveFromUiLocked(command);
   }
 
   async #upsertLocked(command: UpsertUpdateCommand): Promise<Result<UpdateMutationResult>> {

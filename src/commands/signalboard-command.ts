@@ -13,6 +13,7 @@ import type { SignalBoardRuntime } from '../runtime/types.js';
 import { type SignalBoardAction, SignalBoardComponent } from '../ui/board/component.js';
 import { type BoardTab, buildBoardViewModel } from '../ui/board/model.js';
 import { collectAnswerIntent, collectRecommendationIntent } from './answer-actions.js';
+import { BoardActionCoordinator, captureBoardAction } from './board-action-coordinator.js';
 import { parseSignalBoardCommand } from './command-parser.js';
 import {
   type ConfirmedMutationResult,
@@ -180,6 +181,7 @@ async function openBoard(
     return;
   }
 
+  const actionCoordinator = new BoardActionCoordinator(dependencies.lifecycle);
   let activeTab = requestedTab;
   let selectedInboxId: string | undefined;
   let closeGuard:
@@ -243,6 +245,8 @@ async function openBoard(
       break;
     }
 
+    const actionCapture = captureBoardAction(snapshot.value.guard, action);
+
     if (action.type === 'answer' || action.type === 'accept_recommendation') {
       selectedInboxId = action.entityId;
       const detail = snapshot.value.model.tabs.inbox.detailsById[action.entityId];
@@ -250,9 +254,12 @@ async function openBoard(
         ? collectAnswerIntent(context, detail?.projection.item, action.expectedRevision)
         : collectRecommendationIntent(context, detail?.projection.item, action.expectedRevision));
       if (result.kind === 'intent') {
+        const preflight = await actionCoordinator.preflight(actionCapture);
         dependencies.emit(
           context,
-          `${result.intent.source === 'recommendation' ? 'Recommendation' : 'Answer input'} was validated, but saving is not available in this build (SB_UI_UNAVAILABLE). No state changed.`,
+          preflight.ok
+            ? `${result.intent.source === 'recommendation' ? 'Recommendation' : 'Answer input'} was validated, but saving is not available in this build (SB_UI_UNAVAILABLE). No state changed.`
+            : `${action.type === 'accept_recommendation' ? 'Recommendation' : 'Answer interaction'} unavailable (${preflight.error.code}). No state changed.`,
         );
       } else if (result.kind === 'unavailable') {
         dependencies.emit(
@@ -278,16 +285,13 @@ async function openBoard(
                 if (ids === undefined) throw new Error('UI command IDs are unavailable.');
                 return ids.command();
               },
-              dismissQuestion: async (command) => {
-                const current = dependencies.lifecycle.slot.current();
-                if (!sameRuntimeGuard(current, snapshot.value.guard)) {
-                  return fail(signalBoardError('SB_STATE_CONFLICT'));
-                }
-                const service = current.questionService;
-                return service === undefined
-                  ? fail(signalBoardError('SB_NOT_INITIALIZED'))
-                  : service.dismissQuestion(command);
-              },
+              dismissQuestion: (command) =>
+                actionCoordinator.run(actionCapture, (current) => {
+                  const service = current.questionService;
+                  return service === undefined
+                    ? fail(signalBoardError('SB_NOT_INITIALIZED'))
+                    : service.dismissQuestionLocked(command);
+                }),
             })
           : await confirmArchiveUpdate({
               context,
@@ -298,24 +302,24 @@ async function openBoard(
                 if (ids === undefined) throw new Error('UI command IDs are unavailable.');
                 return ids.command();
               },
-              archiveFromUi: async (command) => {
-                const current = dependencies.lifecycle.slot.current();
-                if (!sameRuntimeGuard(current, snapshot.value.guard)) {
-                  return fail(signalBoardError('SB_STATE_CONFLICT'));
-                }
-                const service = current.updateService;
-                return service === undefined
-                  ? fail(signalBoardError('SB_NOT_INITIALIZED'))
-                  : service.archiveFromUi(command);
-              },
+              archiveFromUi: (command) =>
+                actionCoordinator.run(actionCapture, (current) => {
+                  const service = current.updateService;
+                  return service === undefined
+                    ? fail(signalBoardError('SB_NOT_INITIALIZED'))
+                    : service.archiveFromUiLocked(command);
+                }),
             });
       emitConfirmedMutationResult(context, dependencies, action.type, result);
       continue;
     }
 
+    const preflight = await actionCoordinator.preflight(actionCapture);
     dependencies.emit(
       context,
-      'Signal Board action is not available in this build (SB_UI_UNAVAILABLE). No state changed.',
+      preflight.ok
+        ? 'Signal Board action is not available in this build (SB_UI_UNAVAILABLE). No state changed.'
+        : `Signal Board action unavailable (${preflight.error.code}). No state changed.`,
     );
   }
 
@@ -394,24 +398,6 @@ function hasCustomUi(context: ExtensionContext): boolean {
   } catch {
     return false;
   }
-}
-
-function sameRuntimeGuard(
-  runtime: SignalBoardRuntime | undefined,
-  guard: {
-    readonly generation: number;
-    readonly identityToken: string;
-    readonly treeRevision: number;
-  },
-): runtime is SignalBoardRuntime {
-  return (
-    runtime !== undefined &&
-    !runtime.disposed &&
-    runtime.status === 'healthy' &&
-    runtime.generation === guard.generation &&
-    runtime.identity.token === guard.identityToken &&
-    runtime.treeRevision === guard.treeRevision
-  );
 }
 
 function emitConfirmedMutationResult(

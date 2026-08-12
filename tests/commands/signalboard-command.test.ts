@@ -295,6 +295,41 @@ describe('SB-028 command boundary', () => {
     expect(harness.sendCalls).toHaveLength(0);
   });
 
+  it('rejects a tree replacement during recommendation confirmation at the shared writer boundary', async () => {
+    const harness = new FakePiHarness();
+    harness.replaceBranch([
+      makeCustomEntry({ id: 'question-entry', data: schemaPositiveEvents[1] }),
+    ]);
+    register(harness);
+    await harness.dispatch('session_start');
+    harness.queueUiResult('custom', {
+      type: 'accept_recommendation',
+      tab: 'inbox',
+      entityId: 'qst_22222222-2222-4222-8222-222222222222',
+      expectedRevision: 1,
+    });
+    const base = harness.context() as ExtensionCommandContext;
+    const context = {
+      ...base,
+      ui: {
+        ...base.ui,
+        confirm: async () => {
+          await harness.dispatch('session_tree');
+          return true;
+        },
+      },
+    } as ExtensionCommandContext;
+
+    await commandHandler(harness)('', context);
+
+    expect(lastNotice(harness)).toBe(
+      'Recommendation unavailable (SB_STATE_CONFLICT). No state changed.',
+    );
+    expect(harness.uiCalls.filter((call) => call.surface === 'custom')).toHaveLength(2);
+    expect(harness.appendCalls).toHaveLength(0);
+    expect(harness.sendCalls).toHaveLength(0);
+  });
+
   it('wires confirmed dismissal once, refreshes the board, sends nothing, and moves Q-1 to History', async () => {
     const harness = new FakePiHarness();
     harness.replaceBranch([

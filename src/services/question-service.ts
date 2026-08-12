@@ -136,7 +136,12 @@ export class QuestionService {
   }
 
   dismissQuestion(command: DismissQuestionCommand): Promise<Result<QuestionMutationResult>> {
-    return this.#dependencies.queue.run(() => this.#dismissLocked(command));
+    return this.#dependencies.queue.run(() => this.dismissQuestionLocked(command));
+  }
+
+  /** Use only while the shared runtime mutation queue is already held. */
+  dismissQuestionLocked(command: DismissQuestionCommand): Promise<Result<QuestionMutationResult>> {
+    return this.#dismissLocked(command);
   }
 
   async #createLocked(command: CreateQuestionCommand): Promise<Result<QuestionMutationResult>> {
