@@ -11,6 +11,7 @@ import type { Diagnostics } from '../services/diagnostics.js';
 import type { MutationQueue } from '../services/mutation-queue.js';
 import type { TurnUpdateRateCounter } from '../services/update-rate-counter.js';
 import type { UpdateService } from '../services/update-service.js';
+import type { SignalBoardUiAdapter } from '../ui/adapter.js';
 
 export type RuntimeStatus = 'healthy' | 'degraded' | 'disabled' | 'unsupported';
 
@@ -33,6 +34,8 @@ export interface SignalBoardRuntime {
   updateRateCounter?: TurnUpdateRateCounter;
   sessionStore?: PiSessionStore;
   updateService?: UpdateService;
+  /** One adapter owns the namespaced widget and status for this runtime. */
+  ui?: SignalBoardUiAdapter;
   state: BoardState;
   status: RuntimeStatus;
   timer: unknown | undefined;

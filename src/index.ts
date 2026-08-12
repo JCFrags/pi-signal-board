@@ -9,6 +9,7 @@ import type { ConfigLoadResult } from './config/types.js';
 import {
   ACK_TOOL_NAME,
   ANSWER_CUSTOM_TYPE,
+  COMMAND_INVOCATION,
   COMMAND_NAME,
   QUESTION_TOOL_NAME,
   SHORTCUT,
@@ -31,11 +32,13 @@ import {
   patchPendingToolFailure,
   registerUpdateTool,
 } from './tools/update-tool.js';
+import { completionWindowCutoff, createSignalBoardUiAdapter } from './ui/adapter.js';
 
 export interface SignalBoardExtensionAdapters {
   readonly evaluateCompatibility: () => CompatibilityResult;
   readonly loadConfig: (context: ConfigLoadContext) => Promise<ConfigLoadResult>;
   readonly now: () => Date;
+  readonly effectiveCommand: (runtime: SignalBoardRuntime) => string;
   readonly writePrint: (text: string) => void;
   readonly replay: RuntimeLifecycleAdapters['replay'];
   readonly hooks: RuntimeLifecycleHooks;
@@ -46,6 +49,7 @@ const DEFAULT_ADAPTERS: SignalBoardExtensionAdapters = {
   evaluateCompatibility: evaluateCurrentHostCompatibility,
   loadConfig: loadConfiguration,
   now: () => new Date(),
+  effectiveCommand: () => COMMAND_INVOCATION,
   writePrint: (text) => process.stdout.write(`${text}\n`),
   replay: DEFAULT_REPLAY_ADAPTER,
   hooks: Object.freeze({}),
@@ -91,6 +95,10 @@ export function createSignalBoardExtension(
       async resetTurnRateCountersLocked(runtime) {
         runtime.updateRateCounter?.reset();
         await adapters.hooks.resetTurnRateCountersLocked?.(runtime);
+      },
+      async refreshLocked(runtime) {
+        await adapters.hooks.refreshLocked?.(runtime);
+        refreshRuntimeUi(runtime, adapters);
       },
     };
     lifecycle = new RuntimeLifecycle({
@@ -167,6 +175,7 @@ function constructUpdateRuntime(
   adapters: SignalBoardExtensionAdapters,
 ): void {
   if (runtime.updateService !== undefined) return;
+  runtime.ui ??= createSignalBoardUiAdapter(runtime.context, runtime.diagnostics);
   const ids = new RuntimeIdGenerator();
   const rateCounter = new TurnUpdateRateCounter();
   const sessionStore = createPiSessionStore(pi, {
@@ -195,12 +204,31 @@ function constructUpdateRuntime(
     refresh: async () => {
       const current = requireCurrent();
       await adapters.hooks.refreshLocked?.(current);
+      refreshRuntimeUi(current, adapters);
     },
     clock: { now: adapters.now },
     ids,
     cwd: runtime.context.cwd,
     config: runtime.config.config,
     rateCounter,
+  });
+}
+
+function refreshRuntimeUi(
+  runtime: SignalBoardRuntime,
+  adapters: SignalBoardExtensionAdapters,
+): void {
+  runtime.ui ??= createSignalBoardUiAdapter(runtime.context, runtime.diagnostics);
+  const currentTime = adapters.now();
+  runtime.ui.refresh({
+    state: runtime.state,
+    config: runtime.config.config,
+    currentTime: currentTime.toISOString(),
+    completedWindowCutoff: completionWindowCutoff(
+      currentTime,
+      runtime.config.config.widget.showCompletedForMinutes,
+    ),
+    effectiveCommand: adapters.effectiveCommand(runtime),
   });
 }
 

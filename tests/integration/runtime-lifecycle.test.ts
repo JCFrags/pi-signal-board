@@ -640,8 +640,10 @@ describe('runtime lifecycle', () => {
     expect(harness.branchReads).toBe(3);
     expect(harness.timers.pending()).toHaveLength(1);
     expect(lifecycle.slot.current()).toMatchObject({ generation: 2, disposed: false });
-    expect(harness.uiCalls.filter((call) => call.surface === 'setWidget').at(-1)?.args[1]).toEqual([
-      'generation:2',
-    ]);
+    const widgetCalls = harness.uiCalls.filter((call) => call.surface === 'setWidget');
+    expect(
+      widgetCalls.some((call) => Array.isArray(call.args[1]) && call.args[1][0] === 'generation:2'),
+    ).toBe(true);
+    expect(widgetCalls.at(-1)?.args[1]).toBeUndefined();
   });
 });
