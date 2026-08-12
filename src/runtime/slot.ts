@@ -76,10 +76,7 @@ export class RuntimeSlot {
       projectTrusted: runtime.config.sources.project !== 'not_read_untrusted',
       persistence: runtime.identity.persistence,
     });
-    return Object.freeze({
-      ...snapshot,
-      status: runtime.status === 'healthy' ? snapshot.status : runtime.status,
-    });
+    return Object.freeze({ ...snapshot, status: runtime.status });
   }
 }
 

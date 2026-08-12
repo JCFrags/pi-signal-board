@@ -94,7 +94,7 @@ describe('M0 registration and doctor shell', () => {
     expect(harness.registrationCount('tools')).toBe(3);
     expect(harness.registrationCount('shortcuts')).toBe(1);
     expect(harness.registrationCount('messageRenderers')).toBe(1);
-    expect(harness.registrationCount('entryRenderers')).toBe(1);
+    expect(harness.registrationCount('entryRenderers')).toBe(0);
     expect(harness.appendCalls).toHaveLength(0);
   });
 
@@ -107,7 +107,7 @@ describe('M0 registration and doctor shell', () => {
     await harness.dispatch('session_start');
     const report = await runCommand(harness, 'doctor');
 
-    expect(report).toContain('Status: degraded');
+    expect(report).toContain('Status: healthy');
     expect(report).toContain('global=rejected');
     expect(report).toContain('Config warnings: 1');
     expect(report).toContain('Config warning categories: global:invalid_schema');
@@ -174,7 +174,7 @@ describe('M0 registration and doctor shell', () => {
     expect(harness.registrationCount('tools')).toBe(3);
     expect(harness.registrationCount('shortcuts')).toBe(1);
     expect(harness.registrationCount('messageRenderers')).toBe(1);
-    expect(harness.registrationCount('entryRenderers')).toBe(1);
+    expect(harness.registrationCount('entryRenderers')).toBe(0);
     expect(harness.handlerCount('session_start')).toBe(1);
     expect(harness.handlerCount('session_shutdown')).toBe(1);
   });

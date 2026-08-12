@@ -25,7 +25,12 @@ function config(enabled = true): ConfigLoadResult {
   };
 }
 
-function event(sequence: number, title: string, updateId: `upd_${string}`): UpdateUpsertedEvent {
+function event(
+  sequence: number,
+  title: string,
+  updateId: `upd_${string}`,
+  displayId: `U-${number}` = 'U-1',
+): UpdateUpsertedEvent {
   return {
     schemaVersion: 1,
     eventId: `evt_40000000-0000-4000-8000-${sequence.toString().padStart(12, '0')}`,
@@ -35,7 +40,7 @@ function event(sequence: number, title: string, updateId: `upd_${string}`): Upda
     commandId: `tool:runtime-${sequence}`,
     payload: {
       updateId,
-      displayId: 'U-1',
+      displayId,
       revision: 1,
       createdAt: AT,
       updatedAt: AT,
@@ -114,7 +119,7 @@ describe('runtime lifecycle', () => {
     expect(harness.registrationCount('tools')).toBe(3);
     expect(harness.registrationCount('commands')).toBe(1);
     expect(harness.registrationCount('shortcuts')).toBe(1);
-    expect(harness.registrationCount('entryRenderers')).toBe(1);
+    expect(harness.registrationCount('entryRenderers')).toBe(0);
     expect(harness.registrationCount('messageRenderers')).toBe(1);
     expect(harness.handlerCount('session_start')).toBe(1);
     expect(harness.handlerCount('session_tree')).toBe(1);
@@ -146,6 +151,223 @@ describe('runtime lifecycle', () => {
     expect(order).toEqual(['expiry', 'recovery', 'refresh', 'timer']);
   });
 
+  it('keeps malformed-between-valid replay healthy, usable, and warned once', async () => {
+    const harness = new FakePiHarness();
+    const first = entry(
+      'valid001',
+      null,
+      event(1, 'Before malformed', 'upd_10000000-0000-4000-8000-000000000001'),
+    );
+    const malformed = makeCustomEntry({
+      id: 'bad00001',
+      parentId: first.id,
+      data: { schemaVersion: 1, privateText: 'PRIVATE malformed content' },
+    });
+    const later = entry(
+      'valid002',
+      malformed.id,
+      event(2, 'After malformed', 'upd_10000000-0000-4000-8000-000000000002', 'U-2'),
+    );
+    harness.replaceBranch([first, malformed, later]);
+    const lifecycle = register(harness);
+
+    await harness.dispatch('session_start');
+
+    expect(lifecycle.slot.current()?.status).toBe('healthy');
+    expect(titles(lifecycle.slot.current())).toEqual(['Before malformed', 'After malformed']);
+    expect(await lifecycle.runHealthy((runtime) => runtime.state.updates.size)).toEqual({
+      ok: true,
+      value: 2,
+    });
+    expect(harness.uiCalls.filter((call) => call.surface === 'notify')).toHaveLength(1);
+    const doctor = lifecycle.doctorSnapshot(harness.context());
+    expect(doctor.status).toBe('healthy');
+    expect(doctor.diagnostics.replay).toEqual({ accepted: 2, skipped: 1 });
+    expect(JSON.stringify(doctor)).not.toContain('PRIVATE');
+  });
+
+  it('keeps rejected config defaults healthy, usable, and warned once', async () => {
+    const harness = new FakePiHarness();
+    const lifecycle = register(harness, {
+      loadConfig: async () => ({
+        config: DEFAULT_CONFIG,
+        sources: { global: 'rejected', project: 'absent' },
+        warnings: [{ source: 'global', reason: 'invalid_schema' }],
+      }),
+    });
+
+    await harness.dispatch('session_start');
+
+    expect(lifecycle.slot.current()?.status).toBe('healthy');
+    expect(lifecycle.slot.current()?.config.config).toBe(DEFAULT_CONFIG);
+    expect(await lifecycle.runHealthy(() => 'usable')).toEqual({ ok: true, value: 'usable' });
+    expect(harness.uiCalls.filter((call) => call.surface === 'notify')).toHaveLength(1);
+    const doctor = lifecycle.doctorSnapshot(harness.context());
+    expect(doctor.status).toBe('healthy');
+    expect(doctor.diagnostics.counts.SB_CONFIG_INVALID).toBe(1);
+  });
+
+  it('runs turn and settled locked hooks in required order', async () => {
+    const harness = new FakePiHarness();
+    const order: string[] = [];
+    register(harness, {
+      hooks: {
+        resetTurnRateCountersLocked() {
+          order.push('rate-reset');
+        },
+        evaluateExpiryLocked() {
+          order.push('expiry');
+        },
+        escalateConditionalQuestionsLocked() {
+          order.push('escalation');
+        },
+        refreshLocked() {
+          order.push('refresh');
+        },
+      },
+    });
+    await harness.dispatch('session_start');
+    order.length = 0;
+
+    await harness.dispatch('turn_start');
+    await harness.dispatch('agent_settled');
+
+    expect(order).toEqual(['rate-reset', 'expiry', 'escalation', 'refresh']);
+  });
+
+  it('serializes turn hooks with public operations on the shared queue', async () => {
+    const harness = new FakePiHarness();
+    const barrier = createDeferred<void>('rate-reset');
+    const order: string[] = [];
+    const lifecycle = register(harness, {
+      hooks: {
+        async resetTurnRateCountersLocked() {
+          order.push('reset:start');
+          await barrier.promise;
+          order.push('reset:end');
+        },
+      },
+    });
+    await harness.dispatch('session_start');
+
+    const turn = harness.dispatch('turn_start');
+    const live = lifecycle.runHealthy(() => {
+      order.push('live');
+    });
+    await microtasks();
+    expect(order).toEqual(['reset:start']);
+    barrier.resolve();
+    await Promise.all([turn, live]);
+    expect(order).toEqual(['reset:start', 'reset:end', 'live']);
+  });
+
+  it('serializes settled hooks with public operations on the shared queue', async () => {
+    const harness = new FakePiHarness();
+    const barrier = createDeferred<void>('settled-expiry');
+    const order: string[] = [];
+    let expiryCalls = 0;
+    const lifecycle = register(harness, {
+      hooks: {
+        async evaluateExpiryLocked() {
+          expiryCalls += 1;
+          if (expiryCalls === 1) return;
+          order.push('expiry:start');
+          await barrier.promise;
+          order.push('expiry:end');
+        },
+        escalateConditionalQuestionsLocked() {
+          order.push('escalation');
+        },
+        refreshLocked() {
+          order.push('refresh');
+        },
+      },
+    });
+    await harness.dispatch('session_start');
+    order.length = 0;
+
+    const settled = harness.dispatch('agent_settled');
+    const live = lifecycle.runHealthy(() => {
+      order.push('live');
+    });
+    await microtasks();
+    expect(order).toEqual(['expiry:start']);
+    barrier.resolve();
+    await Promise.all([settled, live]);
+    expect(order).toEqual(['expiry:start', 'expiry:end', 'escalation', 'refresh', 'live']);
+  });
+
+  it('makes turn and settled hooks no-ops for disabled and degraded runtimes', async () => {
+    let calls = 0;
+    const hooks: RuntimeLifecycleHooks = {
+      resetTurnRateCountersLocked() {
+        calls += 1;
+      },
+      evaluateExpiryLocked() {
+        calls += 1;
+      },
+      escalateConditionalQuestionsLocked() {
+        calls += 1;
+      },
+      refreshLocked() {
+        calls += 1;
+      },
+    };
+    const disabledHarness = new FakePiHarness();
+    register(disabledHarness, { hooks, loadConfig: async () => config(false) });
+    await disabledHarness.dispatch('session_start');
+    await disabledHarness.dispatch('turn_start');
+    await disabledHarness.dispatch('agent_settled');
+
+    const degradedHarness = new FakePiHarness();
+    register(degradedHarness, {
+      hooks,
+      replay() {
+        throw new Error('degraded replay');
+      },
+    });
+    await degradedHarness.dispatch('session_start');
+    await degradedHarness.dispatch('turn_start');
+    await degradedHarness.dispatch('agent_settled');
+    expect(calls).toBe(0);
+  });
+
+  it('contains turn and settled hook throws with content-free evidence and final refresh', async () => {
+    const harness = new FakePiHarness();
+    const order: string[] = [];
+    let expiryCalls = 0;
+    const lifecycle = register(harness, {
+      hooks: {
+        resetTurnRateCountersLocked() {
+          throw new Error('PRIVATE reset stack');
+        },
+        evaluateExpiryLocked() {
+          expiryCalls += 1;
+          if (expiryCalls === 1) return;
+          order.push('expiry');
+          throw new Error('PRIVATE settled stack');
+        },
+        escalateConditionalQuestionsLocked() {
+          order.push('escalation');
+        },
+        refreshLocked() {
+          order.push('refresh');
+        },
+      },
+    });
+    await harness.dispatch('session_start');
+    order.length = 0;
+
+    await expect(harness.dispatch('turn_start')).resolves.toBeDefined();
+    await expect(harness.dispatch('agent_settled')).resolves.toBeDefined();
+
+    expect(order).toEqual(['expiry', 'refresh']);
+    expect(lifecycle.slot.current()?.status).toBe('healthy');
+    const doctor = lifecycle.doctorSnapshot(harness.context());
+    expect(doctor.diagnostics.counts.SB_INTERNAL).toBe(2);
+    expect(JSON.stringify(doctor)).not.toContain('PRIVATE');
+  });
+
   it('replays complete alternate branches and atomically replaces all prior state', async () => {
     const harness = new FakePiHarness();
     const root = makeCustomEntry({ id: 'root0001', customType: 'other', data: {} });
@@ -168,6 +390,42 @@ describe('runtime lifecycle', () => {
     await harness.dispatch('session_tree');
     expect(titles(lifecycle.slot.current())).toEqual(['Right only']);
     expect(harness.entriesReads).toBe(0);
+  });
+
+  it('contains session-tree timer arm failure and preserves replayed usable state', async () => {
+    const harness = new FakePiHarness();
+    const root = makeCustomEntry({ id: 'root0001', customType: 'other', data: {} });
+    const left = entry(
+      'left0001',
+      root.id,
+      event(1, 'Left only', 'upd_10000000-0000-4000-8000-000000000001'),
+    );
+    const right = entry(
+      'right001',
+      root.id,
+      event(2, 'Right only', 'upd_10000000-0000-4000-8000-000000000002'),
+    );
+    harness.replaceTree([root, left, right], left.id);
+    let armCount = 0;
+    const lifecycle = register(harness, {
+      hooks: {
+        armTimerLocked() {
+          armCount += 1;
+          if (armCount === 2) throw new Error('PRIVATE tree timer stack');
+          return { id: armCount };
+        },
+        clearTimer() {},
+      },
+    });
+    await harness.dispatch('session_start');
+    harness.selectLeaf(right.id);
+
+    await expect(harness.dispatch('session_tree')).resolves.toBeDefined();
+
+    expect(titles(lifecycle.slot.current())).toEqual(['Right only']);
+    expect(lifecycle.slot.current()?.status).toBe('healthy');
+    expect(lifecycle.slot.current()?.timer).toBeUndefined();
+    expect(lifecycle.doctorSnapshot(harness.context()).diagnostics.counts.SB_INTERNAL).toBe(1);
   });
 
   it('serializes a live operation against branch replay through the shared queue', async () => {

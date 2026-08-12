@@ -53,8 +53,12 @@ export interface RuntimeDoctorSource {
 }
 
 export interface RuntimeLifecycleHooks {
-  /** Locked startup hooks are intentionally injectable until their services exist. */
+  /** Locked hooks are intentionally injectable until their services exist. */
+  readonly resetTurnRateCountersLocked?: (runtime: SignalBoardRuntime) => void | Promise<void>;
   readonly evaluateExpiryLocked?: (runtime: SignalBoardRuntime) => void | Promise<void>;
+  readonly escalateConditionalQuestionsLocked?: (
+    runtime: SignalBoardRuntime,
+  ) => void | Promise<void>;
   readonly recoverDeliveryLocked?: (runtime: SignalBoardRuntime) => void | Promise<void>;
   readonly refreshLocked?: (runtime: SignalBoardRuntime) => void | Promise<void>;
   readonly onTimerLocked?: (runtime: SignalBoardRuntime) => void | Promise<void>;

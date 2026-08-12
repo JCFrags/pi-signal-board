@@ -9,7 +9,6 @@ import {
   ACK_TOOL_NAME,
   ANSWER_CUSTOM_TYPE,
   COMMAND_NAME,
-  EVENT_CUSTOM_TYPE,
   QUESTION_TOOL_NAME,
   SHORTCUT,
   UPDATE_TOOL_NAME,
@@ -133,10 +132,6 @@ function registerStaticTools(pi: ExtensionAPI, lifecycle: RuntimeLifecycle): voi
 }
 
 function registerStaticRenderers(pi: ExtensionAPI): void {
-  pi.registerEntryRenderer(
-    EVENT_CUSTOM_TYPE,
-    (_entry, _options, theme) => new Text(theme.fg('muted', '[Signal Board event]'), 0, 0),
-  );
   pi.registerMessageRenderer(
     ANSWER_CUSTOM_TYPE,
     (_message, _options, theme) => new Text(theme.fg('muted', '[Signal Board answer]'), 0, 0),

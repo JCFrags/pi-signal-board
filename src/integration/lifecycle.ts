@@ -51,10 +51,10 @@ export class RuntimeLifecycle {
       await this.replaceTree(context);
     });
     pi.on('turn_start', async () => {
-      await this.queue.run(() => undefined);
+      await this.turnStart();
     });
     pi.on('agent_settled', async () => {
-      await this.queue.run(() => undefined);
+      await this.agentSettled();
     });
     pi.on('session_shutdown', async () => {
       await this.shutdown();
@@ -121,11 +121,15 @@ export class RuntimeLifecycle {
           await this.#adapters.hooks.recoverDeliveryLocked?.(runtime);
           await this.refreshLocked(runtime);
           await this.armTimerLocked(runtime);
+          if (runtime.config.warnings.length > 0 || replay.warnings.length > 0) {
+            this.notifyStartupOnceLocked(runtime);
+          }
         } catch {
           recordInternal(runtime.diagnostics, at, 'lifecycle');
           runtime.status = 'degraded';
           this.clearTimerLocked(runtime);
           this.clearSurfacesLocked(runtime);
+          this.notifyStartupOnceLocked(runtime);
         }
       } else {
         this.clearSurfacesLocked(runtime);
@@ -157,12 +161,38 @@ export class RuntimeLifecycle {
           await this.armTimerLocked(runtime);
         } catch {
           recordInternal(runtime.diagnostics, safeTimestamp(this.#adapters.now), 'lifecycle');
-          runtime.status = 'degraded';
           this.clearTimerLocked(runtime);
           this.clearSurfacesLocked(runtime);
         }
       } else {
         this.clearSurfacesLocked(runtime);
+      }
+    });
+  }
+
+  async turnStart(): Promise<void> {
+    await this.queue.run(async () => {
+      const runtime = this.healthyRuntimeLocked();
+      if (runtime === undefined) return;
+      try {
+        await this.#adapters.hooks.resetTurnRateCountersLocked?.(runtime);
+      } catch {
+        recordInternal(runtime.diagnostics, safeTimestamp(this.#adapters.now), 'lifecycle');
+      }
+    });
+  }
+
+  async agentSettled(): Promise<void> {
+    await this.queue.run(async () => {
+      const runtime = this.healthyRuntimeLocked();
+      if (runtime === undefined) return;
+      try {
+        await this.#adapters.hooks.evaluateExpiryLocked?.(runtime);
+        await this.#adapters.hooks.escalateConditionalQuestionsLocked?.(runtime);
+      } catch {
+        recordInternal(runtime.diagnostics, safeTimestamp(this.#adapters.now), 'lifecycle');
+      } finally {
+        await this.refreshLocked(runtime);
       }
     });
   }
@@ -202,6 +232,13 @@ export class RuntimeLifecycle {
 
   doctorSnapshot(context: ExtensionContext): SessionHealthSnapshot {
     return this.slot.doctorSnapshot(context);
+  }
+
+  private healthyRuntimeLocked(): SignalBoardRuntime | undefined {
+    const runtime = this.slot.current();
+    return runtime !== undefined && !runtime.disposed && runtime.status === 'healthy'
+      ? runtime
+      : undefined;
   }
 
   private async refreshLocked(runtime: SignalBoardRuntime): Promise<void> {
@@ -284,7 +321,9 @@ export class RuntimeLifecycle {
         ? 'Signal Board is unavailable on this host. Run /signalboard doctor.'
         : runtime.status === 'disabled'
           ? 'Signal Board is disabled. Run /signalboard doctor.'
-          : 'Signal Board startup failed safely. Run /signalboard doctor.';
+          : runtime.status === 'healthy'
+            ? 'Signal Board started with recoverable warnings. Run /signalboard doctor.'
+            : 'Signal Board startup failed safely. Run /signalboard doctor.';
     safeUiCall(runtime, 'notification', () => runtime.context.ui.notify(message, 'warning'));
   }
 }
@@ -296,7 +335,7 @@ function initialStatus(
 ): SignalBoardRuntime['status'] {
   if (!compatibility.supported) return 'unsupported';
   if (!config.config.enabled) return 'disabled';
-  if (degraded || config.warnings.length > 0) return 'degraded';
+  if (degraded) return 'degraded';
   return 'healthy';
 }
 
