@@ -25,8 +25,8 @@ import {
 import { createPiSessionStore } from './persistence/pi-session-store.js';
 import type { RuntimeLifecycleHooks, SignalBoardRuntime } from './runtime/types.js';
 import { ExpiryService, type ExpiryTimerAdapter } from './services/expiry-service.js';
-import { TurnQuestionRateCounter } from './services/question-rate-counter.js';
 import { QuestionEscalationService } from './services/question-escalation-service.js';
+import { TurnQuestionRateCounter } from './services/question-rate-counter.js';
 import { QuestionService } from './services/question-service.js';
 import { TurnUpdateRateCounter } from './services/update-rate-counter.js';
 import { UpdateService } from './services/update-service.js';
