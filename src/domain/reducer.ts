@@ -16,7 +16,7 @@ import type {
   UpdateUpsertedEvent,
 } from './events.js';
 import { assertNeverBoardEvent } from './events.js';
-import type { CommandId, EventId, QuestionId, UpdateId } from './ids.js';
+import type { CommandId, EventId, UpdateId } from './ids.js';
 import {
   decisionDisplayId,
   isAnswerId,
@@ -48,6 +48,7 @@ import type {
   IdempotentCommandResult,
   QuestionItem,
   UpdateItem,
+  VisibleChange,
 } from './types.js';
 
 export type ReducerRejectCode =
@@ -68,30 +69,7 @@ export const REDUCER_REJECT_REASONS = Object.freeze({
   unsafeQuestion: 'Authorization questions cannot be persisted.',
 } as const);
 
-export type VisibleChange =
-  | { readonly kind: 'none' }
-  | {
-      readonly kind:
-        | 'update_created'
-        | 'update_changed'
-        | 'update_completed'
-        | 'update_failed'
-        | 'update_archived';
-      readonly itemId: UpdateId;
-    }
-  | {
-      readonly kind:
-        | 'question_created'
-        | 'question_changed'
-        | 'question_blocking'
-        | 'question_answered'
-        | 'question_terminal'
-        | 'delivery_failed'
-        | 'answer_applied'
-        | 'answer_needs_attention';
-      readonly itemId: QuestionId;
-    }
-  | { readonly kind: 'board_viewed' | 'board_reset' };
+export type { VisibleChange } from './types.js';
 
 export type ReduceResult =
   | {
@@ -121,6 +99,7 @@ export function createEmptyBoardState(): BoardState {
     acknowledgements: new Map(),
     commandResults: new Map(),
     acceptedEventIds: new Map(),
+    visibleChanges: [],
     counters: EMPTY_COUNTERS,
     replay: EMPTY_REPLAY,
   });
@@ -143,6 +122,7 @@ export function createStateAfterReset(event: BoardResetEvent): BoardState {
       ],
     ]),
     acceptedEventIds: new Map<EventId, string>([[event.eventId, eventValue]]),
+    visibleChanges: [],
     resetEventId: event.eventId,
     counters: EMPTY_COUNTERS,
     replay: { acceptedEvents: 1, skippedEvents: 0, warnings: [] },
@@ -182,7 +162,7 @@ export function reduceBoardEvent(state: BoardState, event: BoardEvent): ReduceRe
 
     const handled = dispatch(state, event);
     if ('ok' in handled) return handled;
-    const recorded = recordAccepted(handled.state, event, fullFingerprint);
+    const recorded = recordAccepted(handled.state, event, fullFingerprint, handled.visibleChange);
     return success(recorded, handled.visibleChange, false);
   } catch {
     return reject('SB_INVALID_ARGUMENT', REDUCER_REJECT_REASONS.invalidEvent);
@@ -291,7 +271,7 @@ function reduceUpdateUpserted(state: BoardState, event: UpdateUpsertedEvent): Ha
           existing === undefined ? state.counters.nextUpdate + 1 : state.counters.nextUpdate,
       },
     },
-    visibleChange: { kind, itemId: item.id },
+    visibleChange: { kind, itemId: item.id, updateKind: item.kind },
   };
 }
 
@@ -321,7 +301,7 @@ function reduceUpdateArchived(state: BoardState, event: UpdateArchivedEvent): Ha
   };
   return {
     state: { ...state, updates: new Map(state.updates).set(item.id, item) },
-    visibleChange: { kind: 'update_archived', itemId: item.id },
+    visibleChange: { kind: 'update_archived', itemId: item.id, updateKind: item.kind },
   };
 }
 
@@ -715,8 +695,24 @@ function reduceReset(event: BoardResetEvent): HandlerResult {
   return { state: createStateAfterReset(event), visibleChange: { kind: 'board_reset' } };
 }
 
-function recordAccepted(state: BoardState, event: BoardEvent, fingerprint: string): BoardState {
+function recordAccepted(
+  state: BoardState,
+  event: BoardEvent,
+  fingerprint: string,
+  visibleChange: VisibleChange,
+): BoardState {
   if (event.eventType === 'board.reset') return state;
+  const shouldRecord = 'itemId' in visibleChange && event.eventType !== 'answer.delivery_queued';
+  const visibleChanges = shouldRecord
+    ? [
+        ...state.visibleChanges,
+        {
+          eventId: event.eventId,
+          occurredAt: event.occurredAt,
+          change: visibleChange,
+        },
+      ]
+    : state.visibleChanges;
   return freezeClone({
     ...state,
     commandResults: new Map(state.commandResults).set(event.commandId, {
@@ -725,6 +721,7 @@ function recordAccepted(state: BoardState, event: BoardEvent, fingerprint: strin
       semanticPayload: event.payload,
     }),
     acceptedEventIds: new Map(state.acceptedEventIds).set(event.eventId, fingerprint),
+    visibleChanges,
     replay: { ...state.replay, acceptedEvents: state.replay.acceptedEvents + 1 },
   });
 }

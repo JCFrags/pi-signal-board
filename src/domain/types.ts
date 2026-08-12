@@ -342,6 +342,46 @@ export interface ReplayWarning {
   readonly code: ReplayWarningCode;
 }
 
+/** A semantic item change emitted and retained by the reducer. */
+export type VisibleChange =
+  | { readonly kind: 'none' }
+  | {
+      readonly kind:
+        | 'update_created'
+        | 'update_changed'
+        | 'update_completed'
+        | 'update_failed'
+        | 'update_archived';
+      readonly itemId: UpdateId;
+      /** The update kind at this exact change, retained for cutoff-safe projections. */
+      readonly updateKind: UpdateKind;
+    }
+  | {
+      readonly kind:
+        | 'question_created'
+        | 'question_changed'
+        | 'question_blocking'
+        | 'question_answered'
+        | 'question_terminal'
+        | 'delivery_failed'
+        | 'answer_applied'
+        | 'answer_needs_attention';
+      readonly itemId: QuestionId;
+    }
+  | { readonly kind: 'board_viewed' | 'board_reset' };
+
+/** Replay-safe semantic change metadata. This is not a second persisted event log. */
+export type ItemVisibleChange = Exclude<
+  VisibleChange,
+  { readonly kind: 'none' } | { readonly kind: 'board_viewed' | 'board_reset' }
+>;
+
+export interface VisibleChangeRecord {
+  readonly eventId: EventId;
+  readonly occurredAt: IsoTimestamp;
+  readonly change: ItemVisibleChange;
+}
+
 /** Compact replay-safe evidence retained for one accepted command. */
 export interface IdempotentCommandResult<
   TEventType extends string = string,
@@ -361,6 +401,7 @@ export interface BoardState {
   readonly commandResults: ReadonlyMap<CommandId, IdempotentCommandResult>;
   /** Canonical accepted event content keyed by event ID for collision detection. */
   readonly acceptedEventIds: ReadonlyMap<EventId, string>;
+  readonly visibleChanges: readonly VisibleChangeRecord[];
   readonly lastViewedAt?: IsoTimestamp;
   readonly resetEventId?: EventId;
   readonly counters: {
