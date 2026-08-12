@@ -113,6 +113,8 @@ export interface BoardTabModel<Row, Detail> {
   readonly count: number;
   readonly visibleCount: number;
   readonly rows: readonly Row[];
+  /** Complete immutable detail lookup for navigation inside this one board-open snapshot. */
+  readonly detailsById: Readonly<Record<string, Detail>>;
   readonly selectedId?: string;
   readonly detail?: Detail;
   readonly empty: BoardEmptyState;
@@ -218,8 +220,23 @@ export function buildBoardViewModel(
   );
   const decisionRows = decisions.map((decision) => decisionRow(decision, decisionSelection.id));
   const historyRows = history.items.map((entry) => historyRow(entry, historySelection.id));
+  const inboxDetails = Object.fromEntries(
+    inbox.map((entry) => [entry.item.id, { entityType: 'question', projection: entry }]),
+  ) as Record<string, InboxDetailModel>;
+  const updateDetails = Object.fromEntries(
+    updates.map((item) => [item.id, { entityType: 'update', item }]),
+  ) as Record<string, UpdateDetailModel>;
+  const decisionDetails = Object.fromEntries(
+    decisions.map((decision) => [decision.id, { entityType: 'decision', decision }]),
+  ) as Record<string, DecisionDetailModel>;
+  const historyDetails = Object.fromEntries(
+    history.items.flatMap((entry) => {
+      const detail = historyDetail(state, entry);
+      return detail === undefined ? [] : [[`${entry.entityType}:${entry.item.id}`, detail]];
+    }),
+  ) as Record<string, HistoryDetailModel>;
   const historySelectedDetail =
-    historySelection.value === undefined ? undefined : historyDetail(state, historySelection.value);
+    historySelection.id === undefined ? undefined : historyDetails[historySelection.id];
   const omittedCount = Math.max(0, history.total - history.items.length);
 
   return immutableCopy({
@@ -245,6 +262,7 @@ export function buildBoardViewModel(
         count: inbox.length,
         visibleCount: inboxRows.length,
         rows: inboxRows,
+        detailsById: inboxDetails,
         ...(inboxSelection.id === undefined ? {} : { selectedId: inboxSelection.id }),
         ...(inboxSelection.value === undefined
           ? {}
@@ -260,6 +278,7 @@ export function buildBoardViewModel(
         count: updates.length,
         visibleCount: updateRows.length,
         rows: updateRows,
+        detailsById: updateDetails,
         ...(updateSelection.id === undefined ? {} : { selectedId: updateSelection.id }),
         ...(updateSelection.value === undefined
           ? {}
@@ -270,6 +289,7 @@ export function buildBoardViewModel(
         count: decisions.length,
         visibleCount: decisionRows.length,
         rows: decisionRows,
+        detailsById: decisionDetails,
         ...(decisionSelection.id === undefined ? {} : { selectedId: decisionSelection.id }),
         ...(decisionSelection.value === undefined
           ? {}
@@ -280,6 +300,7 @@ export function buildBoardViewModel(
         count: history.total,
         visibleCount: historyRows.length,
         rows: historyRows,
+        detailsById: historyDetails,
         ...(historySelection.id === undefined ? {} : { selectedId: historySelection.id }),
         ...(historySelectedDetail === undefined ? {} : { detail: historySelectedDetail }),
         empty: EMPTY_STATES.history,

@@ -392,4 +392,5 @@ export type { FixedConfigReader };
 export { RuntimeLifecycle } from './integration/lifecycle.js';
 export { RuntimeSlot } from './runtime/slot.js';
 export type * from './runtime/types.js';
+export * from './ui/board/component.js';
 export * from './ui/board/model.js';

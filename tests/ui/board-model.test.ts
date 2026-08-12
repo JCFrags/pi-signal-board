@@ -551,6 +551,30 @@ describe('SB-026 board view model', () => {
     });
   });
 
+  it('exposes complete immutable per-row detail lookup without changing selected detail semantics', () => {
+    const model = buildBoardViewModel(completeState(), undefined, OPENED_AT, effectiveConfig());
+    expect(Object.keys(model.tabs.inbox.detailsById)).toHaveLength(model.tabs.inbox.rows.length);
+    expect(Object.keys(model.tabs.updates.detailsById)).toHaveLength(
+      model.tabs.updates.rows.length,
+    );
+    expect(Object.keys(model.tabs.decisions.detailsById)).toHaveLength(
+      model.tabs.decisions.rows.length,
+    );
+    expect(Object.keys(model.tabs.history.detailsById)).toHaveLength(
+      model.tabs.history.rows.length,
+    );
+    expect(model.tabs.inbox.detail).toStrictEqual(
+      model.tabs.inbox.detailsById[model.tabs.inbox.selectedId as string],
+    );
+    expect(model.tabs.inbox.detailsById[questionId(1)]?.projection.item.question).toBe(
+      'Question 1?',
+    );
+    expect(Object.isFrozen(model.tabs.inbox.detailsById)).toBe(true);
+    expect(Object.isFrozen(model.tabs.inbox.detailsById[questionId(1)]?.projection.item)).toBe(
+      true,
+    );
+  });
+
   it('retains no nested state or configuration aliases and blocks caller mutation', () => {
     const state = completeState();
     const config = effectiveConfig(1);

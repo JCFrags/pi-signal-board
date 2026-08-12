@@ -1,0 +1,91 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SB-027 board component rendering > matches the approved width-49 golden fixture 1`] = `
+[
+  "Signal Board requires at least 50 columns. Resize",
+  "the terminal or press Esc.",
+]
+`;
+
+exports[`SB-027 board component rendering > matches the approved width-50 golden fixture 1`] = `
+[
+  "SIGNAL · Inbox 1/1",
+  "[Inbox 1] [Updates 1] [Decisions 0] [History 1]",
+  "──────────────────────────────────────────────────",
+  "> [PENDING] Q-1 Preserve the deprecated cache opt…",
+  "──────────────────────────────────────────────────",
+  "Enter details · A answer · R recommendation",
+  "X dismiss",
+  "Tab/Shift+Tab view · ↑↓/jk move · ? help",
+  "Esc close",
+]
+`;
+
+exports[`SB-027 board component rendering > matches the approved width-80 golden fixture 1`] = `
+[
+  "SIGNAL · Inbox 1/1",
+  "[Inbox 1]   [Updates 1]   [Decisions 0]   [History 1]",
+  "────────────────────────────────────────────────────────────────────────────────",
+  "> [PENDING] Q-1 Preserve the deprecated cache option? 🧪",
+  "────────────────────────────────────────────────────────────────────────────────",
+  "Enter details · A answer · R recommendation · X dismiss",
+  "Tab/Shift+Tab view · ↑↓/jk move · ? help · Esc close",
+]
+`;
+
+exports[`SB-027 board component rendering > matches the approved width-99 golden fixture 1`] = `
+[
+  "SIGNAL · Inbox 1/1",
+  "[Inbox 1]   [Updates 1]   [Decisions 0]   [History 1]",
+  "───────────────────────────────────────────────────────────────────────────────────────────────────",
+  "> [PENDING] Q-1 Preserve the deprecated cache option? 🧪",
+  "───────────────────────────────────────────────────────────────────────────────────────────────────",
+  "Enter details · A answer · R recommendation · X dismiss",
+  "Tab/Shift+Tab view · ↑↓/jk move · ? help · Esc close",
+]
+`;
+
+exports[`SB-027 board component rendering > matches the approved width-100 golden fixture 1`] = `
+[
+  "PI SIGNAL BOARD",
+  "[Inbox 1]   [Updates 1]   [Decisions 0]   [History 1]",
+  "────────────────────────────────────────────────────────────────────────────────────────────────────",
+  "> [PENDING] Q-1 Preserve the deprecat…│Q-1 · revision 4",
+  "                                      │[PENDING] [REVERSIBLE] [HIGH]",
+  "                                      │Question: Preserve the deprecated cache option? 🧪",
+  "                                      │Why: Removing it simplifies the parser, but older",
+  "                                      │configuration may break.",
+  "                                      │Recommendation: Keep it for one release.",
+  "                                      │Temporary behavior: Keep current behavior while waiting.",
+  "                                      │1. Keep with deprecation warning",
+  "                                      │2. Remove immediately",
+  "                                      │Affected: Final parser implementation",
+  "                                      │Continued: Tests and documentation",
+  "                                      │Attachment: Parser — src/config/parser.ts",
+  "────────────────────────────────────────────────────────────────────────────────────────────────────",
+  "Enter details · A answer · R recommendation · X dismiss",
+  "Tab/Shift+Tab view · ↑↓/jk move · ? help · Esc close",
+]
+`;
+
+exports[`SB-027 board component rendering > matches the approved width-160 golden fixture 1`] = `
+[
+  "PI SIGNAL BOARD",
+  "[Inbox 1]   [Updates 1]   [Decisions 0]   [History 1]",
+  "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+  "> [PENDING] Q-1 Preserve the deprecated cache…│Q-1 · revision 4",
+  "                                              │[PENDING] [REVERSIBLE] [HIGH]",
+  "                                              │Question: Preserve the deprecated cache option? 🧪",
+  "                                              │Why: Removing it simplifies the parser, but older configuration may break.",
+  "                                              │Recommendation: Keep it for one release.",
+  "                                              │Temporary behavior: Keep current behavior while waiting.",
+  "                                              │1. Keep with deprecation warning",
+  "                                              │2. Remove immediately",
+  "                                              │Affected: Final parser implementation",
+  "                                              │Continued: Tests and documentation",
+  "                                              │Attachment: Parser — src/config/parser.ts",
+  "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+  "Enter details · A answer · R recommendation · X dismiss",
+  "Tab/Shift+Tab view · ↑↓/jk move · ? help · Esc close",
+]
+`;
