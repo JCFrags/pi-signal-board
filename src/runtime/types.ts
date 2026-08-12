@@ -2,11 +2,15 @@ import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
 
 import type { ConfigLoadResult } from '../config/types.js';
 import type { SignalBoardError } from '../domain/errors.js';
+import type { RuntimeIdGenerator } from '../domain/ids.js';
 import type { BoardState } from '../domain/types.js';
 import type { CompatibilityResult } from '../integration/compatibility.js';
 import type { SessionHealthSnapshot, SessionPersistence } from '../integration/doctor.js';
+import type { PiSessionStore } from '../persistence/pi-session-store.js';
 import type { Diagnostics } from '../services/diagnostics.js';
 import type { MutationQueue } from '../services/mutation-queue.js';
+import type { TurnUpdateRateCounter } from '../services/update-rate-counter.js';
+import type { UpdateService } from '../services/update-service.js';
 
 export type RuntimeStatus = 'healthy' | 'degraded' | 'disabled' | 'unsupported';
 
@@ -24,6 +28,11 @@ export interface SignalBoardRuntime {
   readonly compatibility: CompatibilityResult;
   readonly config: ConfigLoadResult;
   readonly diagnostics: Diagnostics;
+  /** Runtime-owned update vertical-slice dependencies. */
+  ids?: RuntimeIdGenerator;
+  updateRateCounter?: TurnUpdateRateCounter;
+  sessionStore?: PiSessionStore;
+  updateService?: UpdateService;
   state: BoardState;
   status: RuntimeStatus;
   timer: unknown | undefined;

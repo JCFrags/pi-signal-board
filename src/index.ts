@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Text } from '@earendil-works/pi-tui';
 import { Type } from 'typebox';
@@ -11,8 +12,8 @@ import {
   COMMAND_NAME,
   QUESTION_TOOL_NAME,
   SHORTCUT,
-  UPDATE_TOOL_NAME,
 } from './constants.js';
+import { RuntimeIdGenerator } from './domain/ids.js';
 import type { CompatibilityResult } from './integration/compatibility.js';
 import { evaluateCurrentHostCompatibility } from './integration/compatibility.js';
 import { formatDoctorReport, formatM0Usage } from './integration/doctor.js';
@@ -21,7 +22,15 @@ import {
   RuntimeLifecycle,
   type RuntimeLifecycleAdapters,
 } from './integration/lifecycle.js';
-import type { RuntimeLifecycleHooks } from './runtime/types.js';
+import { createPiSessionStore } from './persistence/pi-session-store.js';
+import type { RuntimeLifecycleHooks, SignalBoardRuntime } from './runtime/types.js';
+import { TurnUpdateRateCounter } from './services/update-rate-counter.js';
+import { UpdateService } from './services/update-service.js';
+import {
+  PendingToolFailures,
+  patchPendingToolFailure,
+  registerUpdateTool,
+} from './tools/update-tool.js';
 
 export interface SignalBoardExtensionAdapters {
   readonly evaluateCompatibility: () => CompatibilityResult;
@@ -72,17 +81,33 @@ export function createSignalBoardExtension(
   const adapters: SignalBoardExtensionAdapters = { ...DEFAULT_ADAPTERS, ...overrides };
 
   return (pi: ExtensionAPI): void => {
-    const lifecycle = new RuntimeLifecycle({
+    let lifecycle: RuntimeLifecycle;
+    const hooks: RuntimeLifecycleHooks = {
+      ...adapters.hooks,
+      async evaluateExpiryLocked(runtime) {
+        constructUpdateRuntime(runtime, pi, lifecycle, adapters);
+        await adapters.hooks.evaluateExpiryLocked?.(runtime);
+      },
+      async resetTurnRateCountersLocked(runtime) {
+        runtime.updateRateCounter?.reset();
+        await adapters.hooks.resetTurnRateCountersLocked?.(runtime);
+      },
+    };
+    lifecycle = new RuntimeLifecycle({
       evaluateCompatibility: adapters.evaluateCompatibility,
       loadConfig: adapters.loadConfig,
       replay: adapters.replay,
       now: adapters.now,
-      hooks: adapters.hooks,
+      hooks,
     });
     adapters.captureLifecycle?.(lifecycle);
 
     registerStaticRenderers(pi);
-    registerStaticTools(pi, lifecycle);
+    const pendingFailures = new PendingToolFailures();
+    registerStaticTools(pi, lifecycle, pendingFailures);
+    pi.on('tool_result', (event) => patchPendingToolFailure(event, pendingFailures));
+    pi.on('session_start', () => pendingFailures.clear());
+    pi.on('session_shutdown', () => pendingFailures.clear());
 
     pi.registerCommand(COMMAND_NAME, {
       description: 'Show Pi Signal Board diagnostics.',
@@ -108,9 +133,13 @@ export function createSignalBoardExtension(
   };
 }
 
-function registerStaticTools(pi: ExtensionAPI, lifecycle: RuntimeLifecycle): void {
+function registerStaticTools(
+  pi: ExtensionAPI,
+  lifecycle: RuntimeLifecycle,
+  pendingFailures: PendingToolFailures,
+): void {
+  registerUpdateTool(pi, lifecycle, pendingFailures);
   for (const [name, label] of [
-    [UPDATE_TOOL_NAME, 'Signal Board Update'],
     [QUESTION_TOOL_NAME, 'Signal Board Question'],
     [ACK_TOOL_NAME, 'Signal Board Acknowledgement'],
   ] as const) {
@@ -129,6 +158,50 @@ function registerStaticTools(pi: ExtensionAPI, lifecycle: RuntimeLifecycle): voi
       },
     });
   }
+}
+
+function constructUpdateRuntime(
+  runtime: SignalBoardRuntime,
+  pi: ExtensionAPI,
+  lifecycle: RuntimeLifecycle,
+  adapters: SignalBoardExtensionAdapters,
+): void {
+  if (runtime.updateService !== undefined) return;
+  const ids = new RuntimeIdGenerator();
+  const rateCounter = new TurnUpdateRateCounter();
+  const sessionStore = createPiSessionStore(pi, {
+    correlationIds: { nextCorrelationId: () => randomUUID() },
+    at: () => adapters.now().toISOString(),
+    diagnostics: runtime.diagnostics,
+  });
+  const generation = runtime.generation;
+  const requireCurrent = (): SignalBoardRuntime => {
+    const current = lifecycle.slot.current();
+    if (current?.generation !== generation || current.disposed || current.status !== 'healthy') {
+      throw new Error('Stale Signal Board runtime.');
+    }
+    return current;
+  };
+  runtime.ids = ids;
+  runtime.updateRateCounter = rateCounter;
+  runtime.sessionStore = sessionStore;
+  runtime.updateService = new UpdateService({
+    queue: lifecycle.queue,
+    readState: () => requireCurrent().state,
+    swapState: (state) => {
+      requireCurrent().state = state;
+    },
+    append: (event) => sessionStore.append(event),
+    refresh: async () => {
+      const current = requireCurrent();
+      await adapters.hooks.refreshLocked?.(current);
+    },
+    clock: { now: adapters.now },
+    ids,
+    cwd: runtime.context.cwd,
+    config: runtime.config.config,
+    rateCounter,
+  });
 }
 
 function registerStaticRenderers(pi: ExtensionAPI): void {

@@ -121,9 +121,10 @@ describe('runtime lifecycle', () => {
     expect(harness.registrationCount('shortcuts')).toBe(1);
     expect(harness.registrationCount('entryRenderers')).toBe(0);
     expect(harness.registrationCount('messageRenderers')).toBe(1);
-    expect(harness.handlerCount('session_start')).toBe(1);
+    expect(harness.handlerCount('session_start')).toBe(2);
     expect(harness.handlerCount('session_tree')).toBe(1);
-    expect(harness.handlerCount('session_shutdown')).toBe(1);
+    expect(harness.handlerCount('session_shutdown')).toBe(2);
+    expect(harness.handlerCount('tool_result')).toBe(1);
   });
 
   it('runs injected locked startup hooks in expiry, recovery, refresh, timer order', async () => {

@@ -6,6 +6,7 @@ import type {
   SessionShutdownEvent,
   SessionStartEvent,
   SessionTreeEvent,
+  ToolResultEvent,
   TurnStartEvent,
 } from '@earendil-works/pi-coding-agent';
 
@@ -23,7 +24,8 @@ export type HarnessLifecycleEvent =
   | 'session_tree'
   | 'turn_start'
   | 'agent_settled'
-  | 'session_shutdown';
+  | 'session_shutdown'
+  | 'tool_result';
 
 interface HarnessLifecycleEventMap {
   session_start: SessionStartEvent;
@@ -31,6 +33,7 @@ interface HarnessLifecycleEventMap {
   turn_start: TurnStartEvent;
   agent_settled: AgentSettledEvent;
   session_shutdown: SessionShutdownEvent;
+  tool_result: ToolResultEvent;
 }
 
 type HarnessHandler<K extends HarnessLifecycleEvent> = (
@@ -136,6 +139,15 @@ function defaultEvent<K extends HarnessLifecycleEvent>(name: K): HarnessLifecycl
     turn_start: { type: 'turn_start', turnIndex: 0, timestamp: 0 },
     agent_settled: { type: 'agent_settled' },
     session_shutdown: { type: 'session_shutdown', reason: 'quit' },
+    tool_result: {
+      type: 'tool_result',
+      toolCallId: 'synthetic-tool-call',
+      toolName: 'synthetic_tool',
+      input: {},
+      content: [{ type: 'text', text: 'synthetic result' }],
+      details: undefined,
+      isError: false,
+    },
   };
   return events[name];
 }
