@@ -330,9 +330,16 @@ export interface AnswerMessageDetails {
   readonly instruction: string;
 }
 
+export type ReplayWarningCode =
+  | 'SB_REPLAY_DECODE_INVALID'
+  | 'SB_REPLAY_UNSUPPORTED_VERSION'
+  | 'SB_REPLAY_REDUCER_REJECTED';
+
+/** Bounded, content-free replay evidence. */
 export interface ReplayWarning {
-  readonly entryId: string;
-  readonly reason: string;
+  readonly entryIndex: number;
+  readonly entryId?: string;
+  readonly code: ReplayWarningCode;
 }
 
 /** Compact replay-safe evidence retained for one accepted command. */
