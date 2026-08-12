@@ -1,5 +1,5 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
-
+import type { EffectiveCommandInfo } from '../commands/signalboard-command.js';
 import type { ConfigLoadResult } from '../config/types.js';
 import type { SignalBoardError } from '../domain/errors.js';
 import type { RuntimeIdGenerator } from '../domain/ids.js';
@@ -44,6 +44,8 @@ export interface SignalBoardRuntime {
   questionEscalationService?: QuestionEscalationService;
   /** One adapter owns the namespaced widget and status for this runtime. */
   ui?: SignalBoardUiAdapter;
+  /** Actual Pi invocation resolved from registered command metadata. */
+  effectiveCommand?: EffectiveCommandInfo;
   state: BoardState;
   status: RuntimeStatus;
   timer: unknown | undefined;

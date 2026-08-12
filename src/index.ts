@@ -1,22 +1,17 @@
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Text } from '@earendil-works/pi-tui';
 import { Type } from 'typebox';
 
+import { registerSignalBoardCommand } from './commands/signalboard-command.js';
 import type { ConfigLoadContext, FixedConfigReader } from './config/loader.js';
 import { loadConfiguration } from './config/loader.js';
 import type { ConfigLoadResult } from './config/types.js';
-import {
-  ACK_TOOL_NAME,
-  ANSWER_CUSTOM_TYPE,
-  COMMAND_INVOCATION,
-  COMMAND_NAME,
-  SHORTCUT,
-} from './constants.js';
+import { ACK_TOOL_NAME, ANSWER_CUSTOM_TYPE, COMMAND_INVOCATION, SHORTCUT } from './constants.js';
 import { RuntimeIdGenerator } from './domain/ids.js';
 import type { CompatibilityResult } from './integration/compatibility.js';
 import { evaluateCurrentHostCompatibility } from './integration/compatibility.js';
-import { formatDoctorReport, formatM0Usage } from './integration/doctor.js';
 import {
   DEFAULT_REPLAY_ADAPTER,
   RuntimeLifecycle,
@@ -91,10 +86,26 @@ function runtimeErrorText(code: string): string {
 export function createSignalBoardExtension(
   overrides: Partial<SignalBoardExtensionAdapters> = {},
 ): (pi: ExtensionAPI) => void {
-  const adapters: SignalBoardExtensionAdapters = { ...DEFAULT_ADAPTERS, ...overrides };
-
   return (pi: ExtensionAPI): void => {
     let lifecycle: RuntimeLifecycle;
+    let resolveEffectiveCommand = (runtime?: SignalBoardRuntime) => {
+      const invocation =
+        overrides.effectiveCommand?.(runtime as SignalBoardRuntime) ?? COMMAND_INVOCATION;
+      return {
+        baseName: 'signalboard' as const,
+        invocationName: invocation.replace(/^\//u, ''),
+        invocation,
+        discovered: false,
+        collision: invocation !== COMMAND_INVOCATION,
+        ambiguous: false,
+      };
+    };
+    const adapters: SignalBoardExtensionAdapters = {
+      ...DEFAULT_ADAPTERS,
+      ...overrides,
+      effectiveCommand:
+        overrides.effectiveCommand ?? ((runtime) => resolveEffectiveCommand(runtime).invocation),
+    };
     const hooks: RuntimeLifecycleHooks = {
       ...adapters.hooks,
       async evaluateExpiryLocked(runtime) {
@@ -175,15 +186,11 @@ export function createSignalBoardExtension(
     pi.on('session_start', () => pendingFailures.clear());
     pi.on('session_shutdown', () => pendingFailures.clear());
 
-    pi.registerCommand(COMMAND_NAME, {
-      description: 'Show Pi Signal Board diagnostics.',
-      handler: async (args, context) => {
-        const text =
-          args.trim() === 'doctor'
-            ? formatDoctorReport(lifecycle.doctorSnapshot(context))
-            : formatM0Usage();
-        safeEmit(context, text, adapters.writePrint);
-      },
+    resolveEffectiveCommand = registerSignalBoardCommand(pi, {
+      lifecycle,
+      now: adapters.now,
+      emit: (context, text) => safeEmit(context, text, adapters.writePrint),
+      ownEntryPath: fileURLToPath(import.meta.url),
     });
 
     pi.registerShortcut(SHORTCUT, {
@@ -389,6 +396,8 @@ export default function signalBoardExtension(pi: ExtensionAPI): void {
 }
 
 export type { FixedConfigReader };
+export * from './commands/command-parser.js';
+export * from './commands/signalboard-command.js';
 export { RuntimeLifecycle } from './integration/lifecycle.js';
 export { RuntimeSlot } from './runtime/slot.js';
 export type * from './runtime/types.js';

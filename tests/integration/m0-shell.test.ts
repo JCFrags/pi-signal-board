@@ -210,15 +210,18 @@ describe('M0 registration and doctor shell', () => {
     expect(uninitialized.appendCalls).toHaveLength(0);
   });
 
-  it('returns safe M0 usage for every non-doctor argument without mutation', async () => {
-    const harness = new FakePiHarness();
+  it('returns summary or stable usage for non-doctor arguments without mutation', async () => {
+    const harness = new FakePiHarness({ mode: 'print' });
     register(harness);
     await harness.dispatch('session_start');
 
-    for (const args of ['', 'summary', 'doctor extra', 'unknown']) {
-      const output = await runCommand(harness, args);
-      expect(output).toContain('M0 diagnostic shell');
-      expect(output).toContain('Usage: /signalboard doctor');
+    for (const args of ['', 'summary']) {
+      expect(await runCommand(harness, args)).toContain('Signal: 0 actionable questions');
+    }
+    for (const args of ['doctor extra', 'unknown']) {
+      expect(await runCommand(harness, args)).toContain(
+        'Usage: /signalboard [inbox|updates|decisions|history|summary|doctor]',
+      );
     }
     expect(harness.appendCalls).toHaveLength(0);
     expect(harness.sendCalls).toHaveLength(0);

@@ -67,7 +67,10 @@ function formatDiagnosticCounts(snapshot: DiagnosticsSnapshot): string {
 }
 
 /** Format diagnostics without board content, paths, exceptions, or stack data. */
-export function formatDoctorReport(health: SessionHealthSnapshot): string {
+export function formatDoctorReport(
+  health: SessionHealthSnapshot,
+  effectiveCommand = COMMAND_INVOCATION,
+): string {
   const warningCategories = health.config.warnings.map(formatWarning);
   const diagnostics = health.diagnostics;
 
@@ -93,7 +96,7 @@ export function formatDoctorReport(health: SessionHealthSnapshot): string {
     `Delivery failures: ${diagnostics.deliveryFailureCount}`,
     `Diagnostics: total=${diagnostics.totalRecorded}; retained=${diagnostics.retained}`,
     `Diagnostic codes: ${formatDiagnosticCounts(diagnostics)}`,
-    `Command: ${COMMAND_INVOCATION}`,
+    `Command: ${effectiveCommand}`,
     `Shortcut name: ${SHORTCUT_DISPLAY}`,
     '',
     'No paths, board content, exception text, or stack traces are included.',
