@@ -4,6 +4,8 @@ import { decodeBoardEvent, encodeBoardEvent } from '../../src/persistence/event-
 import { schemaPositiveEvents } from '../fixtures/schema-positive.js';
 
 const time = '2026-08-12T09:00:00.000Z';
+const providerQualifiedCommandId =
+  'tool:call_Z6LPv0kJq22rXsNP67ojPhlg|fc_068d35c2414bddfc016a7c4fb7e8f4819881a1ba59d0364046';
 const upd = 'upd_11111111-1111-4111-8111-111111111111';
 const qst = 'qst_22222222-2222-4222-8222-222222222222';
 const ans = 'ans_33333333-3333-4333-8333-333333333333';
@@ -148,6 +150,19 @@ describe('event codec', () => {
       expect(decoded, type).toMatchObject({ ok: true });
       expect(encodeBoardEvent(input)).toEqual(input);
     });
+  });
+
+  it('preserves a provider-qualified Pi command ID exactly', () => {
+    const input = {
+      ...event('update.upserted'),
+      commandId: providerQualifiedCommandId,
+    } as BoardEvent;
+    const decoded = decodeBoardEvent(input);
+    expect(decoded).toMatchObject({
+      ok: true,
+      event: { commandId: providerQualifiedCommandId },
+    });
+    expect(encodeBoardEvent(input)).toEqual(input);
   });
 
   it('returns fresh deeply immutable plain values', () => {

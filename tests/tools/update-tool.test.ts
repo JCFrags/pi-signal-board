@@ -6,6 +6,7 @@ import { DEFAULT_CONFIG } from '../../src/config/defaults.js';
 import { UPDATE_TOOL_NAME } from '../../src/constants.js';
 import { createSignalBoardExtension } from '../../src/index.js';
 import { evaluateHostCompatibility } from '../../src/integration/compatibility.js';
+import { decodeBoardEvent } from '../../src/persistence/event-codec.js';
 import {
   PendingToolFailures,
   patchPendingToolFailure,
@@ -19,6 +20,9 @@ import {
 import { FakePiHarness } from '../helpers/fake-pi.js';
 
 const SUPPORTED = evaluateHostCompatibility({ nodeVersion: '22.19.0', piVersion: '0.84.1' });
+const PROVIDER_QUALIFIED_TOOL_CALL_ID =
+  'call_Z6LPv0kJq22rXsNP67ojPhlg|fc_068d35c2414bddfc016a7c4fb7e8f4819881a1ba59d0364046';
+const PROVIDER_QUALIFIED_COMMAND_ID = `tool:${PROVIDER_QUALIFIED_TOOL_CALL_ID}`;
 const VALID = [
   { operation: 'upsert' },
   {
@@ -224,6 +228,50 @@ describe('signal_board_update execution', () => {
     expect(retry.details).toMatchObject({ ok: true, noOp: true });
     if (!first.details.ok || !retry.details.ok) throw new Error('Expected retry success.');
     expect(retry.details.event).toEqual(first.details.event);
+    expect(test.harness.appendCalls).toHaveLength(1);
+  });
+
+  it('preserves a Pi provider-qualified call ID through append, codec, replay, and idempotency', async () => {
+    const test = setup();
+    await test.harness.dispatch('session_start');
+    const input = {
+      operation: 'upsert',
+      key: 'provider-call',
+      kind: 'working',
+      title: 'Provider-qualified call',
+    } as const;
+
+    const first = await test.tool.execute(PROVIDER_QUALIFIED_TOOL_CALL_ID, input);
+    expect(first.details).toMatchObject({ ok: true, noOp: false });
+    if (!first.details.ok) throw new Error('Expected provider-qualified call success.');
+    expect(first.details.event?.commandId).toBe(PROVIDER_QUALIFIED_COMMAND_ID);
+    expect(test.harness.appendCalls[0]?.data).toMatchObject({
+      commandId: PROVIDER_QUALIFIED_COMMAND_ID,
+    });
+    expect(decodeBoardEvent(test.harness.appendCalls[0]?.data)).toMatchObject({
+      ok: true,
+      event: { commandId: PROVIDER_QUALIFIED_COMMAND_ID },
+    });
+
+    const retry = await test.tool.execute(PROVIDER_QUALIFIED_TOOL_CALL_ID, input);
+    expect(retry.details).toMatchObject({ ok: true, noOp: true });
+    if (!retry.details.ok) throw new Error('Expected same-call retry success.');
+    expect(retry.details.event).toEqual(first.details.event);
+    expect(test.harness.appendCalls).toHaveLength(1);
+
+    expect(
+      await failureDetails(test, PROVIDER_QUALIFIED_TOOL_CALL_ID, {
+        ...input,
+        title: 'Conflicting provider-qualified call',
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'SB_STATE_CONFLICT' } });
+    expect(test.harness.appendCalls).toHaveLength(1);
+
+    await test.harness.dispatch('session_start', { type: 'session_start', reason: 'reload' });
+    const replayedRetry = await test.tool.execute(PROVIDER_QUALIFIED_TOOL_CALL_ID, input);
+    expect(replayedRetry.details).toMatchObject({ ok: true, noOp: true });
+    if (!replayedRetry.details.ok) throw new Error('Expected replayed same-call retry success.');
+    expect(replayedRetry.details.event).toEqual(first.details.event);
     expect(test.harness.appendCalls).toHaveLength(1);
   });
 

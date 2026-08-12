@@ -17,6 +17,9 @@ import {
   updateDisplayId,
 } from '../../src/domain/ids.js';
 
+const PROVIDER_QUALIFIED_TOOL_CALL_ID =
+  'call_Z6LPv0kJq22rXsNP67ojPhlg|fc_068d35c2414bddfc016a7c4fb7e8f4819881a1ba59d0364046';
+
 const UUIDS = [
   '00000000-0000-4000-8000-000000000001',
   '00000000-0000-4000-9000-000000000002',
@@ -115,6 +118,7 @@ describe('ID validation and display counters', () => {
     expect(isAnswerId(`ans_${UUIDS[0]}`)).toBe(true);
     expect(isEventId(`evt_${UUIDS[0]}`)).toBe(true);
     expect(isCommandId('tool:call_1')).toBe(true);
+    expect(isCommandId(`tool:${PROVIDER_QUALIFIED_TOOL_CALL_ID}`)).toBe(true);
     expect(isCommandId('system:stale:qst_1:2')).toBe(true);
     expect(isCommandId(`ui:${UUIDS[0]}`)).toBe(true);
 
@@ -124,6 +128,25 @@ describe('ID validation and display counters', () => {
     expect(isEventId(`evt_${UUIDS[2].toUpperCase()}`)).toBe(false);
     expect(isCommandId('cmd:value')).toBe(false);
     expect(isCommandId(`tool:${'a'.repeat(241)}`)).toBe(false);
+    for (const invalid of [
+      'tool:',
+      'tool:has space',
+      'tool:has\ttab',
+      'tool:has\nline',
+      'tool:unicode-😀',
+      'tool:slash/value',
+      'tool:backslash\\value',
+      'tool:dollar$value',
+      'tool:quote"value',
+      "tool:quote'value",
+      'tool:semicolon;value',
+      'tool:ampersand&value',
+      'tool:plus+value',
+      'ui:provider|value',
+      'system:provider|value',
+    ]) {
+      expect(isCommandId(invalid), invalid).toBe(false);
+    }
   });
 
   it('formats and extracts branch-local monotonic display counters', () => {

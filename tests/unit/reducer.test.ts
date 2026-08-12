@@ -12,6 +12,8 @@ const UPDATE = 'upd_10000000-0000-4000-8000-000000000001' as const;
 const QUESTION = 'qst_20000000-0000-4000-8000-000000000001' as const;
 const ANSWER = 'ans_30000000-0000-4000-8000-000000000001' as const;
 const BASE_TIME = Date.parse('2026-08-08T20:00:00.000Z');
+const PROVIDER_QUALIFIED_COMMAND_ID =
+  'tool:call_Z6LPv0kJq22rXsNP67ojPhlg|fc_068d35c2414bddfc016a7c4fb7e8f4819881a1ba59d0364046' as const;
 
 let eventSequence = 0;
 function nextEventId(): `evt_${string}` {
@@ -392,8 +394,9 @@ describe('SB-010 pure reducer transitions', () => {
 
   it('handles exact and conflicting duplicate event and command IDs', () => {
     eventSequence = 0;
-    const event = updateCreated();
+    const event = { ...updateCreated(), commandId: PROVIDER_QUALIFIED_COMMAND_ID } as BoardEvent;
     const state = accepted(createEmptyBoardState(), event);
+    expect(state.commandResults.has(PROVIDER_QUALIFIED_COMMAND_ID)).toBe(true);
     expect(reduceBoardEvent(state, event)).toMatchObject({
       ok: true,
       state,

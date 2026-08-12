@@ -30,7 +30,8 @@ const UPDATE_ID_PATTERN = /^upd_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-
 const QUESTION_ID_PATTERN = /^qst_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const ANSWER_ID_PATTERN = /^ans_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const EVENT_ID_PATTERN = /^evt_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
-const COMMAND_ID_PATTERN = /^(?:tool|ui|system):[A-Za-z0-9._:-]{1,240}$/u;
+const COMMAND_ID_PATTERN =
+  /^(?:tool:[A-Za-z0-9._:|-]{1,240}|(?:ui|system):[A-Za-z0-9._:-]{1,240})$/u;
 const UPDATE_DISPLAY_ID_PATTERN = /^U-[1-9][0-9]*$/u;
 const QUESTION_DISPLAY_ID_PATTERN = /^Q-[1-9][0-9]*$/u;
 const DECISION_DISPLAY_ID_PATTERN = /^D-[1-9][0-9]*$/u;
