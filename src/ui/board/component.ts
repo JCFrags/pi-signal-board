@@ -2,6 +2,7 @@ import type { Theme } from '@earendil-works/pi-coding-agent';
 import { Key, matchesKey } from '@earendil-works/pi-tui';
 
 import type { AnswerId } from '../../domain/ids.js';
+import { projectRecommendationAnswer } from '../../questions/validation/index.js';
 import {
   BOARD_TABS,
   type BoardTab,
@@ -224,26 +225,10 @@ export class SignalBoardComponent {
   private hasValidRecommendation(row: InboxRow): boolean {
     const detail = this.model.tabs.inbox.detailsById[row.entityId];
     if (detail === undefined) return false;
-    const item = detail.projection.item;
-    const optionIds = new Set((item.response.options ?? []).map((option) => option.id));
-    const recommended = item.recommendedOptionIds;
-    const validIds =
-      recommended.length > 0 &&
-      new Set(recommended).size === recommended.length &&
-      recommended.every((id) => optionIds.has(id));
-    const text = item.recommendedText?.trim() ?? '';
-
-    switch (item.response.kind) {
-      case 'single':
-        return validIds && recommended.length === 1;
-      case 'multiple':
-        return validIds;
-      case 'text':
-        return text.length > 0;
-      case 'single_or_text':
-        return (validIds && recommended.length === 1) || text.length > 0;
-      case 'multiple_or_text':
-        return validIds || text.length > 0;
+    try {
+      return projectRecommendationAnswer(detail.projection.item) !== undefined;
+    } catch {
+      return false;
     }
   }
 

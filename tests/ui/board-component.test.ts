@@ -476,6 +476,17 @@ describe('SB-027 board component input boundary', () => {
     invalid.board.handleInput('r');
     expect(invalid.actions).toEqual([]);
 
+    const malformedHybrid = {
+      ...question('pending'),
+      response: { kind: 'single_or_text', options: question().response.options },
+      recommendedOptionIds: ['keep'],
+      recommendedText: '  not normalized  ',
+    } as QuestionItem;
+    const malformed = component(model({ question: malformedHybrid }));
+    expect(plain(malformed.board.render(80))).not.toContain('R recommendation');
+    malformed.board.handleInput('r');
+    expect(malformed.actions).toEqual([]);
+
     const active = component(model({ update: workingUpdate() }, 'updates'));
     active.board.handleInput('h');
     expect(active.actions).toEqual([]);

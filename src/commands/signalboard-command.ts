@@ -11,7 +11,7 @@ import type { RuntimeLifecycle } from '../integration/lifecycle.js';
 import type { SignalBoardRuntime } from '../runtime/types.js';
 import { type SignalBoardAction, SignalBoardComponent } from '../ui/board/component.js';
 import { type BoardTab, buildBoardViewModel } from '../ui/board/model.js';
-import { collectAnswerIntent } from './answer-actions.js';
+import { collectAnswerIntent, collectRecommendationIntent } from './answer-actions.js';
 import { parseSignalBoardCommand } from './command-parser.js';
 import type { ShortcutAvailability } from './shortcut-registration.js';
 
@@ -237,23 +237,21 @@ async function openBoard(
       break;
     }
 
-    if (action.type === 'answer') {
+    if (action.type === 'answer' || action.type === 'accept_recommendation') {
       selectedInboxId = action.entityId;
       const detail = snapshot.value.model.tabs.inbox.detailsById[action.entityId];
-      const result = await collectAnswerIntent(
-        context,
-        detail?.projection.item,
-        action.expectedRevision,
-      );
+      const result = await (action.type === 'answer'
+        ? collectAnswerIntent(context, detail?.projection.item, action.expectedRevision)
+        : collectRecommendationIntent(context, detail?.projection.item, action.expectedRevision));
       if (result.kind === 'intent') {
         dependencies.emit(
           context,
-          'Answer input was validated, but saving is not available in this build (SB_UI_UNAVAILABLE). No state changed.',
+          `${result.intent.source === 'recommendation' ? 'Recommendation' : 'Answer input'} was validated, but saving is not available in this build (SB_UI_UNAVAILABLE). No state changed.`,
         );
       } else if (result.kind === 'unavailable') {
         dependencies.emit(
           context,
-          `Answer interaction unavailable (${result.code}). No state changed.`,
+          `${action.type === 'accept_recommendation' ? 'Recommendation' : 'Answer interaction'} unavailable (${result.code}). No state changed.`,
         );
       }
       continue;

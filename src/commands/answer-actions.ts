@@ -23,12 +23,25 @@ export interface ManualAnswerIntent {
   readonly value: AnswerValue;
 }
 
+export interface RecommendationAnswerIntent {
+  readonly questionId: QuestionId;
+  readonly expectedRevision: number;
+  readonly source: 'recommendation';
+  readonly value: AnswerValue;
+}
+
+export type AnswerIntent = ManualAnswerIntent | RecommendationAnswerIntent;
+
 export type AnswerInteractionResult =
-  | { readonly kind: 'intent'; readonly intent: ManualAnswerIntent }
+  | { readonly kind: 'intent'; readonly intent: AnswerIntent }
   | { readonly kind: 'cancelled' }
   | {
       readonly kind: 'unavailable';
-      readonly code: 'SB_UI_UNAVAILABLE' | 'SB_NOT_FOUND' | 'SB_REVISION_MISMATCH';
+      readonly code:
+        | 'SB_UI_UNAVAILABLE'
+        | 'SB_NOT_FOUND'
+        | 'SB_REVISION_MISMATCH'
+        | 'SB_INVALID_ARGUMENT';
     }
   | { readonly kind: 'invalid'; readonly code: 'SB_INVALID_ARGUMENT' };
 
@@ -64,6 +77,55 @@ export async function collectAnswerIntent(
   } catch {
     return unavailable('SB_UI_UNAVAILABLE');
   }
+}
+
+/** Collect one explicit recommendation acceptance without persistence or service access. */
+export async function collectRecommendationIntent(
+  context: ExtensionContext,
+  question: QuestionItem | undefined,
+  openedRevision: number,
+): Promise<AnswerInteractionResult> {
+  if (question === undefined) return unavailable('SB_NOT_FOUND');
+  if (question.revision !== openedRevision || !isAnswerable(question)) {
+    return unavailable('SB_REVISION_MISMATCH');
+  }
+  if (!hasUi(context, ['confirm'])) return unavailable('SB_UI_UNAVAILABLE');
+
+  let value: AnswerValue | undefined;
+  try {
+    value = projectRecommendationAnswer(question);
+  } catch {
+    return unavailable('SB_INVALID_ARGUMENT');
+  }
+  if (
+    value === undefined ||
+    !validAnswerValue(value, question) ||
+    !isCanonicalRecommendationValue(value)
+  ) {
+    return unavailable('SB_INVALID_ARGUMENT');
+  }
+
+  let confirmed: unknown;
+  try {
+    confirmed = await context.ui.confirm(
+      `Accept recommendation for ${safeDisplayId(question.displayId)}?`,
+      `Proposed answer: ${summarizeRecommendation(value, question)}\n\nAccept this exact recommendation?`,
+    );
+  } catch {
+    return unavailable('SB_UI_UNAVAILABLE');
+  }
+  if (typeof confirmed !== 'boolean') return unavailable('SB_INVALID_ARGUMENT');
+  if (!confirmed) return cancelled();
+
+  return Object.freeze({
+    kind: 'intent',
+    intent: Object.freeze({
+      questionId: question.id,
+      expectedRevision: openedRevision,
+      source: 'recommendation',
+      value: freezeAnswerValue(value),
+    }),
+  });
 }
 
 /** Compatibility name retained for the accepted SB-031 caller and tests. */
@@ -276,6 +338,58 @@ function freezeAnswerValue(value: AnswerValue): AnswerValue {
 
 function answerTitle(question: QuestionItem): string {
   return `Answer ${question.displayId} (revision ${question.revision})`;
+}
+
+function summarizeRecommendation(value: AnswerValue, question: QuestionItem): string {
+  const option = (id: OptionId) => summarizeOption(id, question);
+  switch (value.kind) {
+    case 'single':
+      return `single option ${option(value.optionId)}`;
+    case 'multiple':
+      return `multiple options ${value.optionIds.map(option).join(', ')}`;
+    case 'text':
+      return `text ${safeSummary(value.text)}`;
+    case 'single_or_text':
+      return [
+        value.optionId === undefined ? undefined : `option ${option(value.optionId)}`,
+        value.text === undefined ? undefined : `text ${safeSummary(value.text)}`,
+      ]
+        .filter((part): part is string => part !== undefined)
+        .join(' and ');
+    case 'multiple_or_text':
+      return [
+        value.optionIds.length === 0
+          ? undefined
+          : `options ${value.optionIds.map(option).join(', ')}`,
+        value.text === undefined ? undefined : `text ${safeSummary(value.text)}`,
+      ]
+        .filter((part): part is string => part !== undefined)
+        .join(' and ');
+  }
+}
+
+function summarizeOption(id: OptionId, question: QuestionItem): string {
+  const label = question.response.options?.find((option) => option.id === id)?.label;
+  return label === undefined ? safeSummary(id) : `${safeSummary(id)} (${safeSummary(label)})`;
+}
+
+function isCanonicalRecommendationValue(value: AnswerValue): boolean {
+  if ('text' in value && value.text !== undefined) {
+    const result = sanitizeText(value.text, TEXT_FIELD_POLICIES.answerText);
+    if (!result.ok || result.value !== value.text) return false;
+  }
+  return true;
+}
+
+function safeDisplayId(value: string): string {
+  const result = sanitizeText(value, { mode: 'one_line', maxCodePoints: 160 });
+  return result.ok ? result.value : 'selected question';
+}
+
+function safeSummary(value: string): string {
+  const result = sanitizeText(value, { mode: 'multiline', maxCodePoints: 4_000 });
+  if (!result.ok) return '[invalid]';
+  return JSON.stringify(result.value);
 }
 
 function isAnswerable(question: QuestionItem): boolean {

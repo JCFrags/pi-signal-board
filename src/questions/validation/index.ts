@@ -122,7 +122,12 @@ export function projectRecommendationAnswer(spec: QuestionSpec): AnswerValue | u
       break;
   }
 
-  return answer !== undefined && validAnswerValue(answer, spec) ? freezeCopy(answer) : undefined;
+  if (answer === undefined || !validAnswerValue(answer, spec)) return undefined;
+  if ('text' in answer && answer.text !== undefined) {
+    const normalized = sanitizeText(answer.text, TEXT_FIELD_POLICIES.answerText);
+    if (!normalized.ok || normalized.value !== answer.text) return undefined;
+  }
+  return freezeCopy(answer);
 }
 
 type ValidationMode = 'create' | 'revise';

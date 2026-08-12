@@ -12,7 +12,8 @@ import {
   resolveEffectiveCommand,
 } from '../../src/index.js';
 import { evaluateHostCompatibility } from '../../src/integration/compatibility.js';
-import { FakePiHarness } from '../helpers/index.js';
+import { schemaPositiveEvents } from '../fixtures/schema-positive.js';
+import { FakePiHarness, makeCustomEntry } from '../helpers/index.js';
 
 const NOW = '2030-01-02T03:04:05.000Z';
 const SUPPORTED = evaluateHostCompatibility({ nodeVersion: '22.19.0', piVersion: '0.84.1' });
@@ -264,6 +265,35 @@ describe('SB-028 command boundary', () => {
       );
     },
   );
+
+  it('routes recommendation acceptance through confirmation and returns to the board without mutation', async () => {
+    const harness = new FakePiHarness();
+    harness.replaceBranch([
+      makeCustomEntry({
+        id: 'question-entry',
+        data: schemaPositiveEvents[1],
+      }),
+    ]);
+    register(harness);
+    await harness.dispatch('session_start');
+    harness.queueUiResult('custom', {
+      type: 'accept_recommendation',
+      tab: 'inbox',
+      entityId: 'qst_22222222-2222-4222-8222-222222222222',
+      expectedRevision: 1,
+    });
+    harness.queueUiResult('confirm', true);
+
+    await commandHandler(harness)('', harness.context() as ExtensionCommandContext);
+
+    expect(lastNotice(harness)).toBe(
+      'Recommendation was validated, but saving is not available in this build (SB_UI_UNAVAILABLE). No state changed.',
+    );
+    expect(harness.uiCalls.filter((call) => call.surface === 'confirm')).toHaveLength(1);
+    expect(harness.uiCalls.filter((call) => call.surface === 'custom')).toHaveLength(2);
+    expect(harness.appendCalls).toHaveLength(0);
+    expect(harness.sendCalls).toHaveLength(0);
+  });
 
   it('returns a stable unavailable result for later mutation actions without service calls', async () => {
     const harness = new FakePiHarness();

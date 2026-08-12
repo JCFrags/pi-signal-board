@@ -49,7 +49,9 @@ function intent(
   result: Awaited<ReturnType<typeof collectSingleTextAnswerIntent>>,
 ): ManualAnswerIntent {
   expect(result.kind).toBe('intent');
-  if (result.kind !== 'intent') throw new Error(`Expected intent, received ${result.kind}`);
+  if (result.kind !== 'intent' || result.intent.source !== 'manual') {
+    throw new Error(`Expected manual intent, received ${result.kind}`);
+  }
   return result.intent;
 }
 
