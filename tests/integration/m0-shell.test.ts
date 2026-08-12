@@ -77,7 +77,7 @@ describe('M0 registration and doctor shell', () => {
     expect(harness.sendCalls).toHaveLength(0);
   });
 
-  it('reports an injected unsupported host without registering or mutating domain surfaces', async () => {
+  it('reports an injected unsupported host without mutating domain surfaces', async () => {
     const harness = new FakePiHarness();
     register(harness, {
       evaluateCompatibility: () =>
@@ -91,10 +91,10 @@ describe('M0 registration and doctor shell', () => {
     expect(report).toContain('Node: 22.18.0 (unsupported)');
     expect(report).toContain('Pi host: 0.85.0 (unsupported)');
     expect(report).toContain('Diagnostic codes: SB_UNSUPPORTED_HOST=1');
-    expect(harness.registrationCount('tools')).toBe(0);
-    expect(harness.registrationCount('shortcuts')).toBe(0);
-    expect(harness.registrationCount('messageRenderers')).toBe(0);
-    expect(harness.registrationCount('entryRenderers')).toBe(0);
+    expect(harness.registrationCount('tools')).toBe(3);
+    expect(harness.registrationCount('shortcuts')).toBe(1);
+    expect(harness.registrationCount('messageRenderers')).toBe(1);
+    expect(harness.registrationCount('entryRenderers')).toBe(1);
     expect(harness.appendCalls).toHaveLength(0);
   });
 
@@ -171,7 +171,10 @@ describe('M0 registration and doctor shell', () => {
     await harness.dispatch('session_start', { type: 'session_start', reason: 'reload' });
 
     expect(harness.registrations.commands.map((entry) => entry.name)).toEqual(['signalboard']);
-    expect(harness.registrationCount('tools')).toBe(0);
+    expect(harness.registrationCount('tools')).toBe(3);
+    expect(harness.registrationCount('shortcuts')).toBe(1);
+    expect(harness.registrationCount('messageRenderers')).toBe(1);
+    expect(harness.registrationCount('entryRenderers')).toBe(1);
     expect(harness.handlerCount('session_start')).toBe(1);
     expect(harness.handlerCount('session_shutdown')).toBe(1);
   });

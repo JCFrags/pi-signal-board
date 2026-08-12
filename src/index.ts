@@ -1,35 +1,37 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
+import { Text } from '@earendil-works/pi-tui';
+import { Type } from 'typebox';
 
-import { DEFAULT_CONFIG } from './config/defaults.js';
 import type { ConfigLoadContext, FixedConfigReader } from './config/loader.js';
 import { loadConfiguration } from './config/loader.js';
-import type { ConfigLoadResult, ConfigWarning } from './config/types.js';
-import { COMMAND_NAME } from './constants.js';
+import type { ConfigLoadResult } from './config/types.js';
 import {
-  type CorrelationIdGenerator,
-  convertUnexpectedError,
-  type UnexpectedErrorArea,
-  type UnexpectedErrorCategory,
-} from './domain/errors.js';
+  ACK_TOOL_NAME,
+  ANSWER_CUSTOM_TYPE,
+  COMMAND_NAME,
+  EVENT_CUSTOM_TYPE,
+  QUESTION_TOOL_NAME,
+  SHORTCUT,
+  UPDATE_TOOL_NAME,
+} from './constants.js';
+import type { CompatibilityResult } from './integration/compatibility.js';
+import { evaluateCurrentHostCompatibility } from './integration/compatibility.js';
+import { formatDoctorReport, formatM0Usage } from './integration/doctor.js';
 import {
-  type CompatibilityResult,
-  evaluateCurrentHostCompatibility,
-  evaluateHostCompatibility,
-} from './integration/compatibility.js';
-import {
-  createSessionHealthSnapshot,
-  formatDoctorReport,
-  formatM0Usage,
-  type SessionHealthSnapshot,
-  type SessionPersistence,
-} from './integration/doctor.js';
-import { createDiagnostics, type Diagnostics } from './services/diagnostics.js';
+  DEFAULT_REPLAY_ADAPTER,
+  RuntimeLifecycle,
+  type RuntimeLifecycleAdapters,
+} from './integration/lifecycle.js';
+import type { RuntimeLifecycleHooks } from './runtime/types.js';
 
 export interface SignalBoardExtensionAdapters {
   readonly evaluateCompatibility: () => CompatibilityResult;
   readonly loadConfig: (context: ConfigLoadContext) => Promise<ConfigLoadResult>;
   readonly now: () => Date;
   readonly writePrint: (text: string) => void;
+  readonly replay: RuntimeLifecycleAdapters['replay'];
+  readonly hooks: RuntimeLifecycleHooks;
+  readonly captureLifecycle?: (lifecycle: RuntimeLifecycle) => void;
 }
 
 const DEFAULT_ADAPTERS: SignalBoardExtensionAdapters = {
@@ -37,61 +39,9 @@ const DEFAULT_ADAPTERS: SignalBoardExtensionAdapters = {
   loadConfig: loadConfiguration,
   now: () => new Date(),
   writePrint: (text) => process.stdout.write(`${text}\n`),
+  replay: DEFAULT_REPLAY_ADAPTER,
+  hooks: Object.freeze({}),
 };
-
-const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z';
-
-class M0CorrelationIds implements CorrelationIdGenerator {
-  #next = 0;
-
-  nextCorrelationId(): string {
-    this.#next += 1;
-    return `sb-m0-${this.#next}`;
-  }
-}
-
-function safeTimestamp(now: () => Date): string {
-  try {
-    const value = now().toISOString();
-    return Number.isFinite(Date.parse(value)) ? value : FALLBACK_TIMESTAMP;
-  } catch {
-    return FALLBACK_TIMESTAMP;
-  }
-}
-
-function recordUnexpected(
-  cause: unknown,
-  diagnostics: Diagnostics,
-  correlationIds: CorrelationIdGenerator,
-  at: string,
-  area: UnexpectedErrorArea,
-  category: UnexpectedErrorCategory,
-): void {
-  convertUnexpectedError(cause, { diagnostics, correlationIds, at, area, category });
-}
-
-function fallbackConfig(projectTrusted: boolean): ConfigLoadResult {
-  const warning: ConfigWarning = {
-    source: 'global',
-    reason: 'unreadable',
-    safeCategory: 'io_error',
-  };
-  return Object.freeze({
-    config: DEFAULT_CONFIG,
-    sources: Object.freeze({
-      global: 'rejected' as const,
-      project: projectTrusted ? ('rejected' as const) : ('not_read_untrusted' as const),
-    }),
-    warnings: Object.freeze([warning]),
-  });
-}
-
-function fallbackCompatibility(): CompatibilityResult {
-  return evaluateHostCompatibility({
-    nodeVersion: process.versions.node,
-    piVersion: undefined,
-  });
-}
 
 function safeEmit(
   context: ExtensionContext,
@@ -102,160 +52,102 @@ function safeEmit(
     try {
       writePrint(text);
     } catch {
-      // A failed print stream must not throw from a command boundary.
+      // A failed print stream must not escape the command boundary.
     }
   }
   try {
     context.ui.notify(text, 'info');
   } catch {
-    // A failed UI output surface must not throw from a command boundary.
+    // A failed UI surface must not escape the command boundary.
   }
 }
 
-function createUninitializedHealth(context: ExtensionContext): SessionHealthSnapshot {
-  let persistence: SessionPersistence = 'ephemeral';
-  try {
-    persistence =
-      context.sessionManager.getSessionFile() === undefined ? 'ephemeral' : 'persistent';
-  } catch {
-    // Uninitialized doctor output remains available without inspecting the exception.
-  }
-
-  return Object.freeze({
-    status: 'uninitialized',
-    compatibility: fallbackCompatibility(),
-    config: Object.freeze({
-      config: DEFAULT_CONFIG,
-      sources: Object.freeze({ global: 'absent', project: 'not_read_untrusted' }),
-      warnings: Object.freeze([]),
-    }),
-    diagnostics: createDiagnostics().snapshot(),
-    mode: context.mode,
-    projectTrusted: false,
-    persistence,
-  });
+function runtimeErrorText(code: string): string {
+  return `Signal Board runtime unavailable (${code}). No state changed.`;
 }
 
-async function initializeHealth(
-  context: ExtensionContext,
-  adapters: SignalBoardExtensionAdapters,
-): Promise<SessionHealthSnapshot> {
-  const diagnostics = createDiagnostics();
-  const correlationIds = new M0CorrelationIds();
-  const at = safeTimestamp(adapters.now);
-
-  let projectTrusted = false;
-  try {
-    projectTrusted = context.isProjectTrusted();
-  } catch (cause) {
-    recordUnexpected(cause, diagnostics, correlationIds, at, 'lifecycle', 'runtime_unavailable');
-  }
-
-  let compatibility: CompatibilityResult;
-  try {
-    compatibility = adapters.evaluateCompatibility();
-  } catch (cause) {
-    recordUnexpected(cause, diagnostics, correlationIds, at, 'compatibility', 'unexpected');
-    compatibility = fallbackCompatibility();
-  }
-
-  if (!compatibility.supported) {
-    diagnostics.record({
-      at,
-      code: 'SB_UNSUPPORTED_HOST',
-      severity: 'error',
-      area: 'compatibility',
-      category: 'unsupported_version',
-    });
-  }
-
-  let config: ConfigLoadResult;
-  try {
-    config = await adapters.loadConfig({
-      cwd: context.cwd,
-      isProjectTrusted: () => projectTrusted,
-    });
-  } catch (cause) {
-    recordUnexpected(cause, diagnostics, correlationIds, at, 'config', 'io_failure');
-    config = fallbackConfig(projectTrusted);
-  }
-
-  for (const _warning of config.warnings) {
-    diagnostics.record({
-      at,
-      code: 'SB_CONFIG_INVALID',
-      severity: 'warning',
-      area: 'config',
-      category: 'invalid_data',
-    });
-  }
-  if (!config.config.enabled) {
-    diagnostics.record({
-      at,
-      code: 'SB_CONFIG_DISABLED',
-      severity: 'info',
-      area: 'config',
-      category: 'disabled',
-    });
-  }
-
-  let persistence: SessionPersistence = 'ephemeral';
-  try {
-    persistence =
-      context.sessionManager.getSessionFile() === undefined ? 'ephemeral' : 'persistent';
-  } catch (cause) {
-    recordUnexpected(cause, diagnostics, correlationIds, at, 'lifecycle', 'runtime_unavailable');
-  }
-
-  return createSessionHealthSnapshot({
-    compatibility,
-    config,
-    diagnostics: diagnostics.snapshot(),
-    mode: context.mode,
-    projectTrusted,
-    persistence,
-  });
-}
-
-/** Build an extension factory with narrow adapters for deterministic host-path tests. */
+/** Build the extension factory with deterministic host and lifecycle adapters. */
 export function createSignalBoardExtension(
   overrides: Partial<SignalBoardExtensionAdapters> = {},
 ): (pi: ExtensionAPI) => void {
   const adapters: SignalBoardExtensionAdapters = { ...DEFAULT_ADAPTERS, ...overrides };
 
   return (pi: ExtensionAPI): void => {
-    let health: SessionHealthSnapshot | undefined;
+    const lifecycle = new RuntimeLifecycle({
+      evaluateCompatibility: adapters.evaluateCompatibility,
+      loadConfig: adapters.loadConfig,
+      replay: adapters.replay,
+      now: adapters.now,
+      hooks: adapters.hooks,
+    });
+    adapters.captureLifecycle?.(lifecycle);
+
+    registerStaticRenderers(pi);
+    registerStaticTools(pi, lifecycle);
 
     pi.registerCommand(COMMAND_NAME, {
-      description: 'Show the Pi Signal Board M0 diagnostics shell.',
+      description: 'Show Pi Signal Board diagnostics.',
       handler: async (args, context) => {
         const text =
           args.trim() === 'doctor'
-            ? formatDoctorReport(health ?? createUninitializedHealth(context))
+            ? formatDoctorReport(lifecycle.doctorSnapshot(context))
             : formatM0Usage();
         safeEmit(context, text, adapters.writePrint);
       },
     });
 
-    pi.on('session_start', async (_event, context) => {
-      health = undefined;
-      try {
-        health = await initializeHealth(context, adapters);
-      } catch {
-        // initializeHealth owns all expected boundaries. Keep doctor usable if an invariant fails.
-        health = createUninitializedHealth(context);
-      }
+    pi.registerShortcut(SHORTCUT, {
+      description: 'Open Pi Signal Board',
+      handler: async (context) => {
+        const access = await lifecycle.runHealthy(() => undefined);
+        const code = access.ok ? 'SB_UI_UNAVAILABLE' : access.error.code;
+        safeEmit(context, runtimeErrorText(code), adapters.writePrint);
+      },
     });
 
-    pi.on('session_shutdown', () => {
-      health = undefined;
-    });
+    lifecycle.register(pi);
   };
 }
 
-/** Pi extension entry point. M0 registers only one command and lifecycle diagnostics. */
+function registerStaticTools(pi: ExtensionAPI, lifecycle: RuntimeLifecycle): void {
+  for (const [name, label] of [
+    [UPDATE_TOOL_NAME, 'Signal Board Update'],
+    [QUESTION_TOOL_NAME, 'Signal Board Question'],
+    [ACK_TOOL_NAME, 'Signal Board Acknowledgement'],
+  ] as const) {
+    pi.registerTool({
+      name,
+      label,
+      description: `${label} runtime shell. Product mutations are added in a later slice.`,
+      parameters: Type.Object({}, { additionalProperties: false }),
+      async execute() {
+        const access = await lifecycle.runHealthy(() => undefined);
+        const code = access.ok ? 'SB_NOT_INITIALIZED' : access.error.code;
+        return {
+          content: [{ type: 'text', text: runtimeErrorText(code) }],
+          details: { ok: false, error: { code } },
+        };
+      },
+    });
+  }
+}
+
+function registerStaticRenderers(pi: ExtensionAPI): void {
+  pi.registerEntryRenderer(
+    EVENT_CUSTOM_TYPE,
+    (_entry, _options, theme) => new Text(theme.fg('muted', '[Signal Board event]'), 0, 0),
+  );
+  pi.registerMessageRenderer(
+    ANSWER_CUSTOM_TYPE,
+    (_message, _options, theme) => new Text(theme.fg('muted', '[Signal Board answer]'), 0, 0),
+  );
+}
+
 export default function signalBoardExtension(pi: ExtensionAPI): void {
   createSignalBoardExtension()(pi);
 }
 
 export type { FixedConfigReader };
+export { RuntimeLifecycle } from './integration/lifecycle.js';
+export { RuntimeSlot } from './runtime/slot.js';
+export type * from './runtime/types.js';
