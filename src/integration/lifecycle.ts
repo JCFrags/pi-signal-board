@@ -309,6 +309,20 @@ export class RuntimeLifecycle {
   }
 
   private clearSurfacesLocked(runtime: SignalBoardRuntime): void {
+    if (runtime.ui !== undefined) {
+      try {
+        runtime.ui.dispose();
+        return;
+      } catch {
+        runtime.diagnostics.record({
+          at: FALLBACK_TIMESTAMP,
+          code: 'SB_UI_UNAVAILABLE',
+          severity: 'warning',
+          area: 'ui',
+          category: 'ui_failure',
+        });
+      }
+    }
     safeUiCall(runtime, 'widget', () => runtime.context.ui.setWidget(WIDGET_ID, undefined));
     safeUiCall(runtime, 'status', () => runtime.context.ui.setStatus(STATUS_ID, undefined));
   }

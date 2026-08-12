@@ -584,6 +584,23 @@ describe('runtime lifecycle', () => {
     expect(order).toEqual(['refresh:1', 'arm:1', 'clear:1', 'refresh:2', 'arm:2']);
   });
 
+  it('uses exact legacy surface clearing when a disabled runtime has no adapter', async () => {
+    const harness = new FakePiHarness();
+    const lifecycle = register(harness, { loadConfig: async () => config(false) });
+    await harness.dispatch('session_start');
+    expect(lifecycle.slot.current()?.ui).toBeUndefined();
+    expect(harness.uiCalls.filter((call) => call.surface === 'setWidget')).toHaveLength(1);
+    expect(harness.uiCalls.filter((call) => call.surface === 'setStatus')).toHaveLength(1);
+
+    await harness.dispatch('session_shutdown');
+    const widgetCalls = harness.uiCalls.filter((call) => call.surface === 'setWidget');
+    const statusCalls = harness.uiCalls.filter((call) => call.surface === 'setStatus');
+    expect(widgetCalls).toHaveLength(2);
+    expect(statusCalls).toHaveLength(2);
+    expect(widgetCalls.every((call) => call.args[1] === undefined)).toBe(true);
+    expect(statusCalls.every((call) => call.args[1] === undefined)).toBe(true);
+  });
+
   it('shutdown is terminal, clears timer and surfaces, and removes only its generation', async () => {
     const harness = new FakePiHarness();
     const lifecycle = register(harness, { hooks: timerHooks(harness, []) });

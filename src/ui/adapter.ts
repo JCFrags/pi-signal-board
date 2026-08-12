@@ -36,6 +36,8 @@ class RuntimeUiAdapter implements SignalBoardUiAdapter {
   readonly #context: ExtensionContext;
   readonly #diagnostics: Diagnostics;
   #disposed = false;
+  #widgetActive = false;
+  #statusActive = false;
   #diagnosticTime = '1970-01-01T00:00:00.000Z';
 
   constructor(context: ExtensionContext, diagnostics: Diagnostics) {
@@ -44,8 +46,12 @@ class RuntimeUiAdapter implements SignalBoardUiAdapter {
   }
 
   refresh(input: UiAdapterRefresh): void {
-    if (this.#disposed || !this.hasUi()) return;
+    if (this.#disposed) return;
     this.#diagnosticTime = normalizeTimestamp(input.currentTime);
+    if (!this.hasUi()) {
+      this.clearInstalledSurfaces();
+      return;
+    }
 
     if (!input.config.enabled) {
       this.clearBoth();
@@ -59,7 +65,7 @@ class RuntimeUiAdapter implements SignalBoardUiAdapter {
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
-    if (this.hasUi()) this.clearBoth();
+    if (this.#widgetActive || this.#statusActive || this.hasUi()) this.clearBoth();
   }
 
   private hasUi(): boolean {
@@ -121,11 +127,18 @@ class RuntimeUiAdapter implements SignalBoardUiAdapter {
     }
 
     try {
-      this.setStatus(renderStatusText(input.state, input.currentTime));
+      this.setStatus(
+        renderStatusText(input.state, input.currentTime, input.config.status.hideWhenClear),
+      );
     } catch {
       this.recordUiUnavailable('ui_failure');
       this.setStatus(undefined);
     }
+  }
+
+  private clearInstalledSurfaces(): void {
+    if (this.#widgetActive) this.setWidget(undefined);
+    if (this.#statusActive) this.setStatus(undefined);
   }
 
   private clearBoth(): void {
@@ -134,31 +147,35 @@ class RuntimeUiAdapter implements SignalBoardUiAdapter {
   }
 
   private setWidget(content: WidgetContent): void {
-    this.callSurface('setWidget', (method, receiver) => {
+    const succeeded = this.callSurface('setWidget', (method, receiver) => {
       method.call(receiver, WIDGET_ID, content, { placement: 'aboveEditor' });
     });
+    if (succeeded) this.#widgetActive = content !== undefined;
   }
 
   private setStatus(text: string | undefined): void {
-    this.callSurface('setStatus', (method, receiver) => {
+    const succeeded = this.callSurface('setStatus', (method, receiver) => {
       method.call(receiver, STATUS_ID, text);
     });
+    if (succeeded) this.#statusActive = text !== undefined;
   }
 
   private callSurface(
     name: 'setWidget' | 'setStatus',
     invoke: (method: (...arguments_: unknown[]) => unknown, receiver: object) => void,
-  ): void {
+  ): boolean {
     try {
       const ui = this.#context.ui as unknown as Record<string, unknown>;
       const method = ui?.[name];
       if (typeof method !== 'function') {
         this.recordUiUnavailable('ui_unsupported');
-        return;
+        return false;
       }
       invoke(method as (...arguments_: unknown[]) => unknown, ui);
+      return true;
     } catch {
       this.recordUiUnavailable('ui_failure');
+      return false;
     }
   }
 

@@ -6,7 +6,9 @@ import { UPDATE_TOOL_NAME } from '../../src/constants.js';
 import { createSignalBoardExtension } from '../../src/index.js';
 import { evaluateHostCompatibility } from '../../src/integration/compatibility.js';
 import type { RuntimeLifecycle } from '../../src/integration/lifecycle.js';
+import type { SignalBoardRuntime } from '../../src/runtime/types.js';
 import type { UpdateToolInput } from '../../src/tools/update-tool.js';
+import type { SignalBoardUiAdapter } from '../../src/ui/adapter.js';
 import { FakePiHarness } from '../helpers/fake-pi.js';
 
 const SUPPORTED = evaluateHostCompatibility({ nodeVersion: '22.19.0', piVersion: '0.84.1' });
@@ -54,6 +56,19 @@ function installedLines(harness: FakePiHarness, width = 80): string[] {
   return typeof content === 'function' ? (content as () => Component)().render(width) : [];
 }
 
+function refreshRetainedAdapter(
+  adapter: SignalBoardUiAdapter,
+  state: SignalBoardRuntime['state'],
+): void {
+  adapter.refresh({
+    state,
+    config: DEFAULT_CONFIG,
+    currentTime: '2026-08-12T10:20:00.000Z',
+    completedWindowCutoff: '2026-08-12T10:10:00.000Z',
+    effectiveCommand: '/signalboard:2',
+  });
+}
+
 describe('runtime-owned UI adapter wiring', () => {
   it('refreshes on start, accepted mutation, and tree replay without recursive queue entry', async () => {
     const test = setup();
@@ -93,6 +108,9 @@ describe('runtime-owned UI adapter wiring', () => {
       title: 'Reload fixture',
     });
 
+    const widgetCallsBeforeReload = surfaceCalls(test.harness, 'setWidget').length;
+    const statusCallsBeforeReload = surfaceCalls(test.harness, 'setStatus').length;
+    const firstAdapter = firstRuntime?.ui;
     await test.harness.dispatch('session_start', { type: 'session_start', reason: 'reload' });
     const secondRuntime = test.lifecycle.slot.current();
     expect(firstRuntime).toMatchObject({ disposed: true, disposeCount: 1 });
@@ -100,7 +118,17 @@ describe('runtime-owned UI adapter wiring', () => {
     expect(secondRuntime?.ui).not.toBe(firstRuntime?.ui);
     expect(surfaceCalls(test.harness, 'setWidget').at(-1)?.args[0]).toBe('pi-signal-board');
     expect(installedLines(test.harness).join('\n')).toContain('[WORKING] U-1');
+    expect(surfaceCalls(test.harness, 'setWidget')).toHaveLength(widgetCallsBeforeReload + 2);
+    expect(surfaceCalls(test.harness, 'setStatus')).toHaveLength(statusCallsBeforeReload + 2);
 
+    if (!firstAdapter || !firstRuntime) throw new Error('Expected the retained first adapter.');
+    const callsAfterReplacement = test.harness.uiCalls.length;
+    refreshRetainedAdapter(firstAdapter, firstRuntime.state);
+    expect(test.harness.uiCalls).toHaveLength(callsAfterReplacement);
+
+    const secondAdapter = secondRuntime?.ui;
+    const widgetCallsBeforeShutdown = surfaceCalls(test.harness, 'setWidget').length;
+    const statusCallsBeforeShutdown = surfaceCalls(test.harness, 'setStatus').length;
     await test.harness.dispatch('session_shutdown', {
       type: 'session_shutdown',
       reason: 'quit',
@@ -108,6 +136,13 @@ describe('runtime-owned UI adapter wiring', () => {
     expect(test.lifecycle.slot.current()).toBeUndefined();
     expect(surfaceCalls(test.harness, 'setWidget').at(-1)?.args[1]).toBeUndefined();
     expect(surfaceCalls(test.harness, 'setStatus').at(-1)?.args[1]).toBeUndefined();
+    expect(surfaceCalls(test.harness, 'setWidget')).toHaveLength(widgetCallsBeforeShutdown + 1);
+    expect(surfaceCalls(test.harness, 'setStatus')).toHaveLength(statusCallsBeforeShutdown + 1);
+
+    if (!secondAdapter || !secondRuntime) throw new Error('Expected the retained second adapter.');
+    const callsAfterShutdown = test.harness.uiCalls.length;
+    refreshRetainedAdapter(secondAdapter, secondRuntime.state);
+    expect(test.harness.uiCalls).toHaveLength(callsAfterShutdown);
   });
 
   it('uses safe no-op surfaces in noninteractive modes and records no board content', async () => {

@@ -21,7 +21,13 @@ import {
 } from '../rendering/fixtures/widget-state.js';
 
 function config(
-  input: { widget?: boolean; status?: boolean; enabled?: boolean; hideWhenClear?: boolean } = {},
+  input: {
+    widget?: boolean;
+    status?: boolean;
+    enabled?: boolean;
+    hideWhenClear?: boolean;
+    statusHideWhenClear?: boolean;
+  } = {},
 ): EffectiveConfig {
   return {
     ...DEFAULT_CONFIG,
@@ -31,7 +37,11 @@ function config(
       enabled: input.widget ?? true,
       hideWhenClear: input.hideWhenClear ?? true,
     },
-    status: { ...DEFAULT_CONFIG.status, enabled: input.status ?? true },
+    status: {
+      ...DEFAULT_CONFIG.status,
+      enabled: input.status ?? true,
+      hideWhenClear: input.statusHideWhenClear ?? true,
+    },
   };
 }
 
@@ -91,7 +101,7 @@ describe('Signal Board UI adapter', () => {
     expect(diagnostics.count()).toBe(0);
   });
 
-  it('does not inflate status with terminal history and clears the default empty state', () => {
+  it('does not inflate status with terminal history and honors exact clear-state configuration', () => {
     const harness = new FakePiHarness();
     const adapter = createSignalBoardUiAdapter(harness.context(), createDiagnostics());
     adapter.refresh(refresh(widgetState({ updates: [widgetUpdate(1, 'completed', 20)] })));
@@ -104,6 +114,9 @@ describe('Signal Board UI adapter', () => {
       { placement: 'aboveEditor' },
     ]);
     expect(lastSurface(harness, 'setStatus')).toEqual(['pi-signal-board', undefined]);
+
+    adapter.refresh(refresh(widgetState(), config({ statusHideWhenClear: false })));
+    expect(lastSurface(harness, 'setStatus')).toEqual(['pi-signal-board', 'Signal: clear']);
   });
 
   it.each([
@@ -211,6 +224,33 @@ describe('Signal Board UI adapter', () => {
     const snapshot = diagnostics.snapshot();
     expect(snapshot.counts.SB_UI_UNAVAILABLE).toBe(4);
     expect(JSON.stringify(snapshot)).not.toContain('PRIVATE');
+  });
+
+  it('clears installed surfaces when the host becomes noninteractive', () => {
+    const harness = new FakePiHarness();
+    const diagnostics = createDiagnostics();
+    const base = harness.context();
+    let hasUi = true;
+    const context = {
+      ...base,
+      get hasUI() {
+        return hasUi;
+      },
+    } as ExtensionContext;
+    const adapter = createSignalBoardUiAdapter(context, diagnostics);
+    const active = refresh(widgetState({ updates: [widgetUpdate(1, 'working', 1)] }));
+    adapter.refresh(active);
+    expect(typeof lastSurface(harness, 'setWidget')?.[1]).toBe('function');
+    expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signal: 0Q 1U');
+
+    hasUi = false;
+    adapter.refresh(active);
+    expect(lastSurface(harness, 'setWidget')?.[1]).toBeUndefined();
+    expect(lastSurface(harness, 'setStatus')?.[1]).toBeUndefined();
+    const callsAfterClear = harness.uiCalls.length;
+    adapter.refresh(active);
+    expect(harness.uiCalls).toHaveLength(callsAfterClear);
+    expect(diagnostics.count()).toBe(0);
   });
 
   it('clears disabled state and makes direct disposal idempotent', () => {
