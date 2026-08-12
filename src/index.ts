@@ -3,12 +3,19 @@ import { fileURLToPath } from 'node:url';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Text } from '@earendil-works/pi-tui';
 import { Type } from 'typebox';
-
-import { registerSignalBoardCommand } from './commands/signalboard-command.js';
+import {
+  registerSignalBoardShortcut,
+  type ShortcutRegistration,
+} from './commands/shortcut-registration.js';
+import {
+  handleSignalBoardOpen,
+  registerSignalBoardCommand,
+  type SignalBoardCommandDependencies,
+} from './commands/signalboard-command.js';
 import type { ConfigLoadContext, FixedConfigReader } from './config/loader.js';
 import { loadConfiguration } from './config/loader.js';
 import type { ConfigLoadResult } from './config/types.js';
-import { ACK_TOOL_NAME, ANSWER_CUSTOM_TYPE, COMMAND_INVOCATION, SHORTCUT } from './constants.js';
+import { ACK_TOOL_NAME, ANSWER_CUSTOM_TYPE, COMMAND_INVOCATION } from './constants.js';
 import { RuntimeIdGenerator } from './domain/ids.js';
 import type { CompatibilityResult } from './integration/compatibility.js';
 import { evaluateCurrentHostCompatibility } from './integration/compatibility.js';
@@ -88,6 +95,9 @@ export function createSignalBoardExtension(
 ): (pi: ExtensionAPI) => void {
   return (pi: ExtensionAPI): void => {
     let lifecycle: RuntimeLifecycle;
+    let shortcutRegistration: ShortcutRegistration = Object.freeze({
+      availability: 'available',
+    });
     let resolveEffectiveCommand = (runtime?: SignalBoardRuntime) => {
       const invocation =
         overrides.effectiveCommand?.(runtime as SignalBoardRuntime) ?? COMMAND_INVOCATION;
@@ -109,6 +119,7 @@ export function createSignalBoardExtension(
     const hooks: RuntimeLifecycleHooks = {
       ...adapters.hooks,
       async evaluateExpiryLocked(runtime) {
+        recordShortcutConflictOnce(runtime, shortcutRegistration, adapters.now);
         constructRuntimeServices(runtime, pi, lifecycle, adapters);
         await runtime.expiryService?.evaluateExpiryLocked(adapters.now());
         await adapters.hooks.evaluateExpiryLocked?.(runtime);
@@ -186,24 +197,46 @@ export function createSignalBoardExtension(
     pi.on('session_start', () => pendingFailures.clear());
     pi.on('session_shutdown', () => pendingFailures.clear());
 
-    resolveEffectiveCommand = registerSignalBoardCommand(pi, {
+    const commandDependencies: SignalBoardCommandDependencies = {
       lifecycle,
       now: adapters.now,
       emit: (context, text) => safeEmit(context, text, adapters.writePrint),
       ownEntryPath: fileURLToPath(import.meta.url),
-    });
+      shortcutAvailability: () => shortcutRegistration.availability,
+    };
+    resolveEffectiveCommand = registerSignalBoardCommand(pi, commandDependencies);
 
-    pi.registerShortcut(SHORTCUT, {
-      description: 'Open Pi Signal Board',
-      handler: async (context) => {
-        const access = await lifecycle.runHealthy(() => undefined);
-        const code = access.ok ? 'SB_UI_UNAVAILABLE' : access.error.code;
-        safeEmit(context, runtimeErrorText(code), adapters.writePrint);
-      },
+    shortcutRegistration = registerSignalBoardShortcut(pi, {
+      openBoard: (context) =>
+        handleSignalBoardOpen(context, commandDependencies, resolveEffectiveCommand),
+      onFailure: (context) =>
+        safeEmit(
+          context,
+          'Signal Board command failed safely (SB_INTERNAL). No state changed.',
+          adapters.writePrint,
+        ),
     });
 
     lifecycle.register(pi);
   };
+}
+
+function recordShortcutConflictOnce(
+  runtime: SignalBoardRuntime,
+  registration: ShortcutRegistration,
+  now: () => Date,
+): void {
+  if (registration.availability === 'available' || runtime.notifications.has('shortcut-conflict')) {
+    return;
+  }
+  runtime.notifications.add('shortcut-conflict');
+  runtime.diagnostics.record({
+    at: safeAdapterTimestamp(now),
+    code: 'SB_UI_UNAVAILABLE',
+    severity: 'warning',
+    area: 'ui',
+    category: 'host_rejected',
+  });
 }
 
 function registerStaticTools(

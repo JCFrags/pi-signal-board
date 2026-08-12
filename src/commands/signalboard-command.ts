@@ -12,6 +12,7 @@ import type { SignalBoardRuntime } from '../runtime/types.js';
 import { type SignalBoardAction, SignalBoardComponent } from '../ui/board/component.js';
 import { type BoardTab, buildBoardViewModel } from '../ui/board/model.js';
 import { parseSignalBoardCommand } from './command-parser.js';
+import type { ShortcutAvailability } from './shortcut-registration.js';
 
 const COMMAND_PATTERN = /^signalboard(?::[1-9][0-9]*)?$/u;
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z';
@@ -40,6 +41,7 @@ export interface SignalBoardCommandDependencies {
   readonly emit: (context: ExtensionContext, text: string) => void;
   readonly ownEntryPath?: string;
   readonly listCommands?: () => readonly CommandMetadata[];
+  readonly shortcutAvailability?: () => ShortcutAvailability;
 }
 
 /** Resolve Pi's actual invocation without reading or probing command source paths. */
@@ -111,6 +113,11 @@ export async function handleSignalBoardCommand(
   resolveCommand: (runtime?: SignalBoardRuntime) => EffectiveCommandInfo,
 ): Promise<void> {
   const parsed = parseSignalBoardCommand(raw);
+  if (parsed.kind === 'open' && parsed.tab === undefined) {
+    await handleSignalBoardOpen(context, dependencies, resolveCommand);
+    return;
+  }
+
   const runtime = dependencies.lifecycle.slot.current();
   const effective = resolveCommand(runtime);
 
@@ -121,7 +128,11 @@ export async function handleSignalBoardCommand(
   if (parsed.kind === 'doctor') {
     dependencies.emit(
       context,
-      formatDoctorReport(dependencies.lifecycle.doctorSnapshot(context), effective.invocation),
+      formatDoctorReport(
+        dependencies.lifecycle.doctorSnapshot(context),
+        effective.invocation,
+        dependencies.shortcutAvailability?.() ?? 'available',
+      ),
     );
     return;
   }
@@ -134,9 +145,24 @@ export async function handleSignalBoardCommand(
   await openBoard(parsed.tab, context, dependencies);
 }
 
+/** Open the same no-argument board path used by the command and fixed shortcut. */
+export async function handleSignalBoardOpen(
+  context: ExtensionContext,
+  dependencies: SignalBoardCommandDependencies,
+  resolveCommand: (runtime?: SignalBoardRuntime) => EffectiveCommandInfo,
+): Promise<void> {
+  const runtime = dependencies.lifecycle.slot.current();
+  const effective = resolveCommand(runtime);
+  if (context.mode !== 'tui' || !hasCustomUi(context)) {
+    dependencies.emit(context, await plainSummary(dependencies, effective.invocation));
+    return;
+  }
+  await openBoard(undefined, context, dependencies);
+}
+
 async function openBoard(
   requestedTab: BoardTab | undefined,
-  context: ExtensionCommandContext,
+  context: ExtensionContext,
   dependencies: SignalBoardCommandDependencies,
 ): Promise<void> {
   let openedAt: string;
@@ -249,7 +275,7 @@ function normalizeMetadataPath(value: string): string {
   return value.replaceAll('\\', '/').replace(/\/+/gu, '/').replace(/\/$/u, '');
 }
 
-function hasCustomUi(context: ExtensionCommandContext): boolean {
+function hasCustomUi(context: ExtensionContext): boolean {
   try {
     return typeof context.ui.custom === 'function';
   } catch {

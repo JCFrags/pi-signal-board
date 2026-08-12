@@ -1,5 +1,5 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
-
+import type { ShortcutAvailability } from '../commands/shortcut-registration.js';
 import type { ConfigLoadResult, ConfigWarning } from '../config/types.js';
 import {
   COMMAND_INVOCATION,
@@ -70,6 +70,7 @@ function formatDiagnosticCounts(snapshot: DiagnosticsSnapshot): string {
 export function formatDoctorReport(
   health: SessionHealthSnapshot,
   effectiveCommand = COMMAND_INVOCATION,
+  shortcutAvailability: ShortcutAvailability = 'available',
 ): string {
   const warningCategories = health.config.warnings.map(formatWarning);
   const diagnostics = health.diagnostics;
@@ -97,7 +98,7 @@ export function formatDoctorReport(
     `Diagnostics: total=${diagnostics.totalRecorded}; retained=${diagnostics.retained}`,
     `Diagnostic codes: ${formatDiagnosticCounts(diagnostics)}`,
     `Command: ${effectiveCommand}`,
-    `Shortcut name: ${SHORTCUT_DISPLAY}`,
+    `Shortcut: ${SHORTCUT_DISPLAY} (${shortcutAvailability})`,
     '',
     'No paths, board content, exception text, or stack traces are included.',
   ].join('\n');

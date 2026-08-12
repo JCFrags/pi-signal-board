@@ -192,6 +192,7 @@ export class FakePiHarness {
   private readonly appendFailures: unknown[] = [];
   private readonly sendFailures: unknown[] = [];
   private readonly uiFailures = new Map<string, unknown[]>();
+  private readonly shortcutRegistrationFailures: unknown[] = [];
   private readonly dialogResults = new Map<string, unknown[]>();
   private getEntriesFailure: unknown;
   private commandsOverride: unknown[] | undefined;
@@ -325,6 +326,12 @@ export class FakePiHarness {
     this.sendFailures.push(reason);
   }
 
+  failNextShortcutRegistration(
+    reason: unknown = new Error('Synthetic shortcut registration failure.'),
+  ): void {
+    this.shortcutRegistrationFailures.push(reason);
+  }
+
   failNextUi(surface: string, reason: unknown = new Error(`Synthetic ${surface} failure.`)): void {
     const failures = this.uiFailures.get(surface) ?? [];
     failures.push(reason);
@@ -409,6 +416,7 @@ export class FakePiHarness {
         this.record('registration', 'command');
       },
       registerShortcut: (shortcut: string, options: unknown) => {
+        this.consumeFailure(this.shortcutRegistrationFailures);
         this.registrations.shortcuts.push({ shortcut, options });
         this.record('registration', 'shortcut');
       },
