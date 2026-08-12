@@ -11,6 +11,7 @@ import type { RuntimeLifecycle } from '../integration/lifecycle.js';
 import type { SignalBoardRuntime } from '../runtime/types.js';
 import { type SignalBoardAction, SignalBoardComponent } from '../ui/board/component.js';
 import { type BoardTab, buildBoardViewModel } from '../ui/board/model.js';
+import { collectSingleTextAnswerIntent } from './answer-actions.js';
 import { parseSignalBoardCommand } from './command-parser.js';
 import type { ShortcutAvailability } from './shortcut-registration.js';
 
@@ -173,59 +174,99 @@ async function openBoard(
     return;
   }
 
-  const expiry = await dependencies.lifecycle.evaluateBoardOpen();
-  if (!expiry.ok) {
-    dependencies.emit(context, runtimeFailure(expiry.error.code));
-    return;
-  }
-
-  const snapshot = await dependencies.lifecycle.runHealthy((runtime) => ({
-    model: buildBoardViewModel(runtime.state, requestedTab, openedAt, runtime.config.config),
-    guard: {
-      generation: runtime.generation,
-      identityToken: runtime.identity.token,
-      treeRevision: runtime.treeRevision,
-    },
-  }));
-  if (!snapshot.ok) {
-    dependencies.emit(context, runtimeFailure(snapshot.error.code));
-    return;
-  }
-
-  let component: SignalBoardComponent | undefined;
+  let activeTab = requestedTab;
+  let selectedInboxId: string | undefined;
+  let closeGuard:
+    | { readonly generation: number; readonly identityToken: string; readonly treeRevision: number }
+    | undefined;
   let normalClose = false;
-  try {
-    const action = await context.ui.custom<SignalBoardAction | undefined>(
-      (tui, theme, _keybindings, done) => {
-        component = new SignalBoardComponent({
-          tui,
-          theme,
-          model: snapshot.value.model,
-          done,
-        });
-        return component;
+
+  while (true) {
+    const expiry = await dependencies.lifecycle.evaluateBoardOpen();
+    if (!expiry.ok) {
+      dependencies.emit(context, runtimeFailure(expiry.error.code));
+      return;
+    }
+
+    const snapshot = await dependencies.lifecycle.runHealthy((runtime) => ({
+      model: buildBoardViewModel(runtime.state, activeTab, openedAt, runtime.config.config, {
+        ...(selectedInboxId === undefined ? {} : { inbox: selectedInboxId }),
+      }),
+      guard: {
+        generation: runtime.generation,
+        identityToken: runtime.identity.token,
+        treeRevision: runtime.treeRevision,
       },
-    );
-    normalClose = action?.type === 'close';
-    if (action !== undefined && action.type !== 'close') {
+    }));
+    if (!snapshot.ok) {
+      dependencies.emit(context, runtimeFailure(snapshot.error.code));
+      return;
+    }
+    closeGuard = snapshot.value.guard;
+
+    let component: SignalBoardComponent | undefined;
+    let action: SignalBoardAction | undefined;
+    try {
+      action = await context.ui.custom<SignalBoardAction | undefined>(
+        (tui, theme, _keybindings, done) => {
+          component = new SignalBoardComponent({
+            tui,
+            theme,
+            model: snapshot.value.model,
+            done,
+          });
+          return component;
+        },
+      );
+    } catch {
+      recordUiFailure(dependencies.lifecycle.slot.current(), dependencies.now);
       dependencies.emit(
         context,
-        'Signal Board action is not available in this build (SB_UI_UNAVAILABLE). No state changed.',
+        'Signal Board interactive UI failed (SB_UI_UNAVAILABLE). No state changed.',
       );
+      return;
+    } finally {
+      component?.dispose();
+      component = undefined;
     }
-  } catch {
-    recordUiFailure(dependencies.lifecycle.slot.current(), dependencies.now);
+
+    if (action === undefined) return;
+    activeTab = action.tab;
+    if (action.type === 'close') {
+      normalClose = true;
+      break;
+    }
+
+    if (action.type === 'answer') {
+      selectedInboxId = action.entityId;
+      const detail = snapshot.value.model.tabs.inbox.detailsById[action.entityId];
+      const result = await collectSingleTextAnswerIntent(
+        context,
+        detail?.projection.item,
+        action.expectedRevision,
+      );
+      if (result.kind === 'intent') {
+        dependencies.emit(
+          context,
+          'Answer input was validated, but saving is not available in this build (SB_UI_UNAVAILABLE). No state changed.',
+        );
+      } else if (result.kind === 'unavailable') {
+        dependencies.emit(
+          context,
+          `Answer interaction unavailable (${result.code}). No state changed.`,
+        );
+      }
+      continue;
+    }
+
     dependencies.emit(
       context,
-      'Signal Board interactive UI failed (SB_UI_UNAVAILABLE). No state changed.',
+      'Signal Board action is not available in this build (SB_UI_UNAVAILABLE). No state changed.',
     );
-  } finally {
-    component?.dispose();
-    component = undefined;
   }
 
-  if (!normalClose) return;
-  const checkpoint = await dependencies.lifecycle.markBoardViewed(openedAt, snapshot.value.guard);
+  if (!normalClose || closeGuard === undefined) return;
+  const checkpoint = await dependencies.lifecycle.markBoardViewed(openedAt, closeGuard);
   if (!checkpoint.ok) {
     dependencies.emit(context, runtimeFailure(checkpoint.error.code));
   }

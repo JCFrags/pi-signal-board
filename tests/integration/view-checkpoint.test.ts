@@ -276,16 +276,21 @@ describe('SB-030 command and shortcut close integration', () => {
       register(harness);
       await harness.dispatch('session_start');
       const base = harness.context() as ExtensionCommandContext;
+      let actionReturned = false;
       const custom =
         outcome === 'cancel'
           ? async () => undefined
           : outcome === 'action'
-            ? async () => ({
-                type: 'answer',
-                tab: 'inbox',
-                entityId: UPDATE_ID,
-                expectedRevision: 1,
-              })
+            ? async () => {
+                if (actionReturned) return undefined;
+                actionReturned = true;
+                return {
+                  type: 'answer' as const,
+                  tab: 'inbox' as const,
+                  entityId: UPDATE_ID,
+                  expectedRevision: 1,
+                };
+              }
             : async () => {
                 throw new Error('synthetic component failure');
               };

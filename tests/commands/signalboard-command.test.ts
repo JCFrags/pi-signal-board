@@ -277,8 +277,9 @@ describe('SB-028 command boundary', () => {
     });
     await commandHandler(harness)('', harness.context() as ExtensionCommandContext);
     expect(lastNotice(harness)).toBe(
-      'Signal Board action is not available in this build (SB_UI_UNAVAILABLE). No state changed.',
+      'Answer interaction unavailable (SB_NOT_FOUND). No state changed.',
     );
+    expect(harness.uiCalls.filter((call) => call.surface === 'custom')).toHaveLength(2);
     expect(harness.appendCalls).toHaveLength(0);
     expect(harness.sendCalls).toHaveLength(0);
   });

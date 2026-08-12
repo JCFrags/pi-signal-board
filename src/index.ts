@@ -441,6 +441,7 @@ export default function signalBoardExtension(pi: ExtensionAPI): void {
 }
 
 export type { FixedConfigReader };
+export * from './commands/answer-actions.js';
 export * from './commands/command-parser.js';
 export * from './commands/signalboard-command.js';
 export { RuntimeLifecycle } from './integration/lifecycle.js';
