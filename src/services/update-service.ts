@@ -80,6 +80,8 @@ export interface UpdateServiceDependencies {
   readonly swapState: (state: BoardState) => void;
   readonly append: (event: UpdateEvent) => Promise<Result<void>>;
   readonly refresh: (state: BoardState) => void | Promise<void>;
+  /** Runs after a durable state refresh while the shared queue remains held. */
+  readonly afterMutationLocked?: () => void | Promise<void>;
   readonly clock: Clock;
   /** One generator owned by the current runtime. */
   readonly ids: Pick<IdGenerator, 'event' | 'update'>;
@@ -266,11 +268,18 @@ export class UpdateService {
     this.#reservedEventId = undefined;
     if (createdUpdate) this.#reservedUpdateId = undefined;
 
+    let refreshFailed = false;
     try {
       await this.#dependencies.refresh(reduced.state);
     } catch {
-      return fail(signalBoardError('SB_UI_UNAVAILABLE'));
+      refreshFailed = true;
     }
+    try {
+      await this.#dependencies.afterMutationLocked?.();
+    } catch {
+      // The accepted update remains durable and exposed. Lifecycle diagnostics own the error.
+    }
+    if (refreshFailed) return fail(signalBoardError('SB_UI_UNAVAILABLE'));
 
     const item = reduced.state.updates.get(event.payload.updateId);
     if (item === undefined) return fail(internalError());

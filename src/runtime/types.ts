@@ -8,6 +8,7 @@ import type { CompatibilityResult } from '../integration/compatibility.js';
 import type { SessionHealthSnapshot, SessionPersistence } from '../integration/doctor.js';
 import type { PiSessionStore } from '../persistence/pi-session-store.js';
 import type { Diagnostics } from '../services/diagnostics.js';
+import type { ExpiryService } from '../services/expiry-service.js';
 import type { MutationQueue } from '../services/mutation-queue.js';
 import type { TurnQuestionRateCounter } from '../services/question-rate-counter.js';
 import type { QuestionService } from '../services/question-service.js';
@@ -38,6 +39,7 @@ export interface SignalBoardRuntime {
   sessionStore?: PiSessionStore;
   updateService?: UpdateService;
   questionService?: QuestionService;
+  expiryService?: ExpiryService;
   /** One adapter owns the namespaced widget and status for this runtime. */
   ui?: SignalBoardUiAdapter;
   state: BoardState;

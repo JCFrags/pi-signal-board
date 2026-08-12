@@ -83,6 +83,8 @@ export interface QuestionServiceDependencies {
   readonly swapState: (state: BoardState) => void;
   readonly append: (event: QuestionEvent) => Promise<Result<void>>;
   readonly refresh: (state: BoardState) => void | Promise<void>;
+  /** Runs after a durable state refresh while the shared queue remains held. */
+  readonly afterMutationLocked?: () => void | Promise<void>;
   readonly clock: Clock;
   readonly ids: Pick<IdGenerator, 'event' | 'question'>;
   readonly cwd: string;
@@ -294,12 +296,18 @@ export class QuestionService {
     const item = reduced.state.questions.get(event.payload.questionId);
     if (item === undefined) return fail(internalError());
     const result = frozenResult(item, event, false);
+    let refreshFailed = false;
     try {
       await this.#dependencies.refresh(reduced.state);
     } catch {
-      return fail(signalBoardError('SB_UI_UNAVAILABLE'));
+      refreshFailed = true;
     }
-    return succeed(result);
+    try {
+      await this.#dependencies.afterMutationLocked?.();
+    } catch {
+      // The accepted question remains durable and exposed. Lifecycle diagnostics own the error.
+    }
+    return refreshFailed ? fail(signalBoardError('SB_UI_UNAVAILABLE')) : succeed(result);
   }
 
   #resolvePriorCreate(

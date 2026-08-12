@@ -14,6 +14,7 @@ import type {
   SignalBoardRuntime,
 } from '../runtime/types.js';
 import { createDiagnostics, type Diagnostics } from '../services/diagnostics.js';
+import type { ExpiryEvaluation } from '../services/expiry-service.js';
 import { MutationQueue } from '../services/mutation-queue.js';
 import type { CompatibilityResult } from './compatibility.js';
 import { evaluateHostCompatibility } from './compatibility.js';
@@ -193,8 +194,33 @@ export class RuntimeLifecycle {
         recordInternal(runtime.diagnostics, safeTimestamp(this.#adapters.now), 'lifecycle');
       } finally {
         await this.refreshLocked(runtime);
+        await this.rearmTimerContainedLocked(runtime);
       }
     });
+  }
+
+  /** Evaluate expiry at the board-open boundary without adding board UI. */
+  evaluateBoardOpen(): Promise<RuntimeAccessResult<ExpiryEvaluation>> {
+    return this.runHealthy(async (runtime) => {
+      const evaluation = await runtime.expiryService?.evaluateExpiryLocked(this.#adapters.now());
+      if (evaluation === undefined) throw new Error('Expiry service is unavailable.');
+      await this.rearmTimerContainedLocked(runtime);
+      return evaluation;
+    });
+  }
+
+  /** Complete timer work after a service mutation that already owns this queue. */
+  async mutationBoundaryLocked(runtime: SignalBoardRuntime): Promise<void> {
+    const current = this.slot.current();
+    if (
+      current?.generation !== runtime.generation ||
+      current.disposed ||
+      current.status !== 'healthy'
+    ) {
+      return;
+    }
+    await this.#adapters.hooks.evaluateExpiryLocked?.(current);
+    await this.rearmTimerContainedLocked(current);
   }
 
   async shutdown(): Promise<void> {
@@ -253,6 +279,16 @@ export class RuntimeLifecycle {
         category: 'ui_failure',
       });
       this.clearSurfacesLocked(runtime);
+    }
+  }
+
+  private async rearmTimerContainedLocked(runtime: SignalBoardRuntime): Promise<void> {
+    this.clearTimerLocked(runtime);
+    try {
+      await this.armTimerLocked(runtime);
+    } catch {
+      recordInternal(runtime.diagnostics, safeTimestamp(this.#adapters.now), 'lifecycle');
+      this.clearTimerLocked(runtime);
     }
   }
 

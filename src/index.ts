@@ -24,6 +24,7 @@ import {
 } from './integration/lifecycle.js';
 import { createPiSessionStore } from './persistence/pi-session-store.js';
 import type { RuntimeLifecycleHooks, SignalBoardRuntime } from './runtime/types.js';
+import { ExpiryService, type ExpiryTimerAdapter } from './services/expiry-service.js';
 import { TurnQuestionRateCounter } from './services/question-rate-counter.js';
 import { QuestionService } from './services/question-service.js';
 import { TurnUpdateRateCounter } from './services/update-rate-counter.js';
@@ -44,6 +45,7 @@ export interface SignalBoardExtensionAdapters {
   readonly writePrint: (text: string) => void;
   readonly replay: RuntimeLifecycleAdapters['replay'];
   readonly hooks: RuntimeLifecycleHooks;
+  readonly expiryTimers: ExpiryTimerAdapter;
   readonly captureLifecycle?: (lifecycle: RuntimeLifecycle) => void;
 }
 
@@ -55,6 +57,10 @@ const DEFAULT_ADAPTERS: SignalBoardExtensionAdapters = {
   writePrint: (text) => process.stdout.write(`${text}\n`),
   replay: DEFAULT_REPLAY_ADAPTER,
   hooks: Object.freeze({}),
+  expiryTimers: {
+    setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
+    clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  },
 };
 
 function safeEmit(
@@ -91,13 +97,44 @@ export function createSignalBoardExtension(
     const hooks: RuntimeLifecycleHooks = {
       ...adapters.hooks,
       async evaluateExpiryLocked(runtime) {
-        constructMutationRuntime(runtime, pi, lifecycle, adapters);
+        constructRuntimeServices(runtime, pi, lifecycle, adapters);
+        await runtime.expiryService?.evaluateExpiryLocked(adapters.now());
         await adapters.hooks.evaluateExpiryLocked?.(runtime);
       },
       async resetTurnRateCountersLocked(runtime) {
         runtime.updateRateCounter?.reset();
         runtime.questionRateCounter?.reset();
         await adapters.hooks.resetTurnRateCountersLocked?.(runtime);
+      },
+      async onTimerLocked(runtime) {
+        await runtime.expiryService?.evaluateExpiryLocked(adapters.now());
+        await adapters.hooks.onTimerLocked?.(runtime);
+      },
+      armTimerLocked(runtime, callback) {
+        if (adapters.hooks.armTimerLocked !== undefined) {
+          return adapters.hooks.armTimerLocked(runtime, callback);
+        }
+        return runtime.expiryService?.armNearestTimerLocked(callback);
+      },
+      clearTimer(handle) {
+        if (adapters.hooks.armTimerLocked !== undefined) {
+          if (adapters.hooks.clearTimer !== undefined) {
+            adapters.hooks.clearTimer(handle);
+          } else {
+            safeClearExpiryHandle(adapters.expiryTimers, handle);
+          }
+          return;
+        }
+        const current = lifecycle.slot.current();
+        if (
+          current !== undefined &&
+          current.timer === handle &&
+          current.expiryService !== undefined
+        ) {
+          current.expiryService.clearTimerLocked();
+          return;
+        }
+        safeClearExpiryHandle(adapters.expiryTimers, handle);
       },
       async refreshLocked(runtime) {
         await adapters.hooks.refreshLocked?.(runtime);
@@ -169,7 +206,7 @@ function registerStaticTools(
   }
 }
 
-function constructMutationRuntime(
+function constructRuntimeServices(
   runtime: SignalBoardRuntime,
   pi: ExtensionAPI,
   lifecycle: RuntimeLifecycle,
@@ -197,6 +234,40 @@ function constructMutationRuntime(
   runtime.updateRateCounter = rateCounter;
   runtime.questionRateCounter = questionRateCounter;
   runtime.sessionStore = sessionStore;
+  const refresh = async (): Promise<void> => {
+    const current = requireCurrent();
+    await adapters.hooks.refreshLocked?.(current);
+    refreshRuntimeUi(current, adapters);
+  };
+  const afterMutationLocked = async (): Promise<void> => {
+    await lifecycle.mutationBoundaryLocked(requireCurrent());
+  };
+  runtime.expiryService = new ExpiryService({
+    queue: lifecycle.queue,
+    readState: () => requireCurrent().state,
+    swapState: (state) => {
+      requireCurrent().state = state;
+    },
+    append: (event) => sessionStore.append(event),
+    refresh,
+    clock: { now: adapters.now },
+    ids,
+    timers: adapters.expiryTimers,
+    recordDiagnostic: (record) => {
+      requireCurrent().diagnostics.record({
+        at: safeAdapterTimestamp(adapters.now),
+        code: record.code,
+        severity: record.code === 'SB_UI_UNAVAILABLE' ? 'warning' : 'error',
+        area:
+          record.code === 'SB_PERSISTENCE_FAILED'
+            ? 'persistence'
+            : record.code === 'SB_UI_UNAVAILABLE'
+              ? 'ui'
+              : 'lifecycle',
+        category: record.category,
+      });
+    },
+  });
   runtime.updateService = new UpdateService({
     queue: lifecycle.queue,
     readState: () => requireCurrent().state,
@@ -204,11 +275,8 @@ function constructMutationRuntime(
       requireCurrent().state = state;
     },
     append: (event) => sessionStore.append(event),
-    refresh: async () => {
-      const current = requireCurrent();
-      await adapters.hooks.refreshLocked?.(current);
-      refreshRuntimeUi(current, adapters);
-    },
+    refresh,
+    afterMutationLocked,
     clock: { now: adapters.now },
     ids,
     cwd: runtime.context.cwd,
@@ -222,11 +290,8 @@ function constructMutationRuntime(
       requireCurrent().state = state;
     },
     append: (event) => sessionStore.append(event),
-    refresh: async () => {
-      const current = requireCurrent();
-      await adapters.hooks.refreshLocked?.(current);
-      refreshRuntimeUi(current, adapters);
-    },
+    refresh,
+    afterMutationLocked,
     clock: { now: adapters.now },
     ids,
     cwd: runtime.context.cwd,
@@ -251,6 +316,22 @@ function refreshRuntimeUi(
     ),
     effectiveCommand: adapters.effectiveCommand(runtime),
   });
+}
+
+function safeClearExpiryHandle(timers: ExpiryTimerAdapter, handle: unknown): void {
+  try {
+    timers.clearTimeout(handle);
+  } catch {
+    // Timer cleanup is best-effort and content-free.
+  }
+}
+
+function safeAdapterTimestamp(now: () => Date): string {
+  try {
+    return now().toISOString();
+  } catch {
+    return '1970-01-01T00:00:00.000Z';
+  }
 }
 
 function registerStaticRenderers(pi: ExtensionAPI): void {
