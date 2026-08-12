@@ -26,6 +26,7 @@ import {
 } from './integration/lifecycle.js';
 import { createPiSessionStore } from './persistence/pi-session-store.js';
 import type { RuntimeLifecycleHooks, SignalBoardRuntime } from './runtime/types.js';
+import { BoardViewCheckpointService } from './services/board-view-checkpoint-service.js';
 import { ExpiryService, type ExpiryTimerAdapter } from './services/expiry-service.js';
 import { QuestionEscalationService } from './services/question-escalation-service.js';
 import { TurnQuestionRateCounter } from './services/question-rate-counter.js';
@@ -300,6 +301,17 @@ function constructRuntimeServices(
   const afterMutationLocked = async (): Promise<void> => {
     await lifecycle.mutationBoundaryLocked(requireCurrent());
   };
+  runtime.boardViewCheckpointService = new BoardViewCheckpointService({
+    queue: lifecycle.queue,
+    readState: () => requireCurrent().state,
+    swapState: (state) => {
+      requireCurrent().state = state;
+    },
+    append: (event) => sessionStore.append(event),
+    refresh,
+    clock: { now: adapters.now },
+    ids,
+  });
   runtime.expiryService = new ExpiryService({
     queue: lifecycle.queue,
     readState: () => requireCurrent().state,
@@ -434,5 +446,6 @@ export * from './commands/signalboard-command.js';
 export { RuntimeLifecycle } from './integration/lifecycle.js';
 export { RuntimeSlot } from './runtime/slot.js';
 export type * from './runtime/types.js';
+export * from './services/board-view-checkpoint-service.js';
 export * from './ui/board/component.js';
 export * from './ui/board/model.js';

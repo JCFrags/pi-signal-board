@@ -179,22 +179,34 @@ async function openBoard(
     return;
   }
 
-  const snapshot = await dependencies.lifecycle.runHealthy((runtime) =>
-    buildBoardViewModel(runtime.state, requestedTab, openedAt, runtime.config.config),
-  );
+  const snapshot = await dependencies.lifecycle.runHealthy((runtime) => ({
+    model: buildBoardViewModel(runtime.state, requestedTab, openedAt, runtime.config.config),
+    guard: {
+      generation: runtime.generation,
+      identityToken: runtime.identity.token,
+      treeRevision: runtime.treeRevision,
+    },
+  }));
   if (!snapshot.ok) {
     dependencies.emit(context, runtimeFailure(snapshot.error.code));
     return;
   }
 
   let component: SignalBoardComponent | undefined;
+  let normalClose = false;
   try {
     const action = await context.ui.custom<SignalBoardAction | undefined>(
       (tui, theme, _keybindings, done) => {
-        component = new SignalBoardComponent({ tui, theme, model: snapshot.value, done });
+        component = new SignalBoardComponent({
+          tui,
+          theme,
+          model: snapshot.value.model,
+          done,
+        });
         return component;
       },
     );
+    normalClose = action?.type === 'close';
     if (action !== undefined && action.type !== 'close') {
       dependencies.emit(
         context,
@@ -210,6 +222,12 @@ async function openBoard(
   } finally {
     component?.dispose();
     component = undefined;
+  }
+
+  if (!normalClose) return;
+  const checkpoint = await dependencies.lifecycle.markBoardViewed(openedAt, snapshot.value.guard);
+  if (!checkpoint.ok) {
+    dependencies.emit(context, runtimeFailure(checkpoint.error.code));
   }
 }
 

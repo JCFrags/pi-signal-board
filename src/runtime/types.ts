@@ -7,6 +7,7 @@ import type { BoardState } from '../domain/types.js';
 import type { CompatibilityResult } from '../integration/compatibility.js';
 import type { SessionHealthSnapshot, SessionPersistence } from '../integration/doctor.js';
 import type { PiSessionStore } from '../persistence/pi-session-store.js';
+import type { BoardViewCheckpointService } from '../services/board-view-checkpoint-service.js';
 import type { Diagnostics } from '../services/diagnostics.js';
 import type { ExpiryService } from '../services/expiry-service.js';
 import type { MutationQueue } from '../services/mutation-queue.js';
@@ -28,6 +29,8 @@ export interface RuntimeIdentity {
 export interface SignalBoardRuntime {
   readonly generation: number;
   readonly identity: RuntimeIdentity;
+  /** Branch identity revision. Only session_tree replacement increments it. */
+  treeRevision: number;
   readonly context: ExtensionContext;
   readonly queue: MutationQueue;
   readonly compatibility: CompatibilityResult;
@@ -42,6 +45,7 @@ export interface SignalBoardRuntime {
   questionService?: QuestionService;
   expiryService?: ExpiryService;
   questionEscalationService?: QuestionEscalationService;
+  boardViewCheckpointService?: BoardViewCheckpointService;
   /** One adapter owns the namespaced widget and status for this runtime. */
   ui?: SignalBoardUiAdapter;
   /** Actual Pi invocation resolved from registered command metadata. */

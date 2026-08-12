@@ -5,6 +5,7 @@ import { DEFAULT_CONFIG } from '../config/defaults.js';
 import type { ConfigLoadContext } from '../config/loader.js';
 import type { ConfigLoadResult, ConfigWarning } from '../config/types.js';
 import { STATUS_ID, WIDGET_ID } from '../constants.js';
+import { fail, type Result, signalBoardError } from '../domain/errors.js';
 import { createEmptyBoardState } from '../domain/reducer.js';
 import { type ReplayOutcome, replayBranch } from '../persistence/replay.js';
 import { RuntimeSlot } from '../runtime/slot.js';
@@ -13,6 +14,7 @@ import type {
   RuntimeLifecycleHooks,
   SignalBoardRuntime,
 } from '../runtime/types.js';
+import type { BoardViewCheckpointResult } from '../services/board-view-checkpoint-service.js';
 import { createDiagnostics, type Diagnostics } from '../services/diagnostics.js';
 import type { ExpiryEvaluation } from '../services/expiry-service.js';
 import { MutationQueue } from '../services/mutation-queue.js';
@@ -98,6 +100,7 @@ export class RuntimeLifecycle {
       const runtime: SignalBoardRuntime = {
         generation,
         identity: safeIdentity(context, generation),
+        treeRevision: 0,
         context,
         queue: this.queue,
         compatibility,
@@ -144,6 +147,7 @@ export class RuntimeLifecycle {
       const runtime = this.slot.current();
       if (runtime === undefined || runtime.disposed) return;
       this.clearTimerLocked(runtime);
+      runtime.treeRevision += 1;
 
       let replay: ReplayOutcome;
       try {
@@ -206,6 +210,44 @@ export class RuntimeLifecycle {
       if (evaluation === undefined) throw new Error('Expiry service is unavailable.');
       await this.rearmTimerContainedLocked(runtime);
       return evaluation;
+    });
+  }
+
+  /** Persist one normal board-close checkpoint through the shared runtime queue. */
+  markBoardViewed(
+    cutoffAt: string,
+    expected: {
+      readonly generation: number;
+      readonly identityToken: string;
+      readonly treeRevision: number;
+    },
+  ): Promise<Result<BoardViewCheckpointResult>> {
+    return this.queue.run(async () => {
+      const access = this.slot.requireHealthyLocked();
+      if (!access.ok) {
+        const code =
+          access.error.code === 'SB_DISABLED'
+            ? 'SB_CONFIG_DISABLED'
+            : access.error.code === 'SB_INTERNAL'
+              ? undefined
+              : access.error.code;
+        return code === undefined ? fail(internalPublicError()) : fail(signalBoardError(code));
+      }
+      if (
+        access.value.generation !== expected.generation ||
+        access.value.identity.token !== expected.identityToken ||
+        access.value.treeRevision !== expected.treeRevision
+      ) {
+        return fail(signalBoardError('SB_STATE_CONFLICT'));
+      }
+      const service = access.value.boardViewCheckpointService;
+      if (service === undefined) return fail(internalPublicError());
+      try {
+        return await service.markViewedLocked({ cutoffAt });
+      } catch {
+        recordInternal(access.value.diagnostics, safeTimestamp(this.#adapters.now), 'lifecycle');
+        return fail(internalPublicError());
+      }
     });
   }
 
@@ -539,6 +581,14 @@ function safeUiCall(runtime: SignalBoardRuntime, _surface: string, operation: ()
       category: 'ui_failure',
     });
   }
+}
+
+function internalPublicError() {
+  return Object.freeze({
+    code: 'SB_INTERNAL' as const,
+    message: 'Signal Board encountered an unexpected internal error.',
+    retryable: true,
+  });
 }
 
 function safeTimestamp(now: () => Date): string {
