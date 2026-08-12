@@ -226,7 +226,7 @@ describe('SB-031 single and text answer interaction', () => {
     ]);
   });
 
-  it('returns stable results for missing, stale, unsupported, and malformed detail', async () => {
+  it('returns stable results for missing, stale, multiple cancellation, and malformed detail', async () => {
     const harness = new FakePiHarness();
     expect(await collectSingleTextAnswerIntent(harness.context(), undefined, 2)).toEqual({
       kind: 'unavailable',
@@ -244,7 +244,9 @@ describe('SB-031 single and text answer interaction', () => {
       ),
     ).toEqual({ kind: 'unavailable', code: 'SB_REVISION_MISMATCH' });
     expect(await collectSingleTextAnswerIntent(harness.context(), question('multiple'), 2)).toEqual(
-      { kind: 'unavailable', code: 'SB_UI_UNAVAILABLE' },
+      {
+        kind: 'cancelled',
+      },
     );
     expect(
       await collectSingleTextAnswerIntent(

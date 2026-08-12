@@ -11,7 +11,7 @@ import type { RuntimeLifecycle } from '../integration/lifecycle.js';
 import type { SignalBoardRuntime } from '../runtime/types.js';
 import { type SignalBoardAction, SignalBoardComponent } from '../ui/board/component.js';
 import { type BoardTab, buildBoardViewModel } from '../ui/board/model.js';
-import { collectSingleTextAnswerIntent } from './answer-actions.js';
+import { collectAnswerIntent } from './answer-actions.js';
 import { parseSignalBoardCommand } from './command-parser.js';
 import type { ShortcutAvailability } from './shortcut-registration.js';
 
@@ -240,7 +240,7 @@ async function openBoard(
     if (action.type === 'answer') {
       selectedInboxId = action.entityId;
       const detail = snapshot.value.model.tabs.inbox.detailsById[action.entityId];
-      const result = await collectSingleTextAnswerIntent(
+      const result = await collectAnswerIntent(
         context,
         detail?.projection.item,
         action.expectedRevision,
