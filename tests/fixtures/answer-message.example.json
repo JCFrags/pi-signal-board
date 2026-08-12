@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "answerId": "ans_33333333-3333-4333-8333-333333333333",
+  "questionId": "qst_22222222-2222-4222-8222-222222222222",
+  "questionDisplayId": "Q-1",
+  "questionRevision": 2,
+  "question": "Should the deprecated cache option remain supported?",
+  "answer": {
+    "kind": "single_or_text",
+    "optionId": "keep",
+    "optionLabel": "Keep for one release"
+  },
+  "answeredAt": "2026-08-08T20:16:00.000Z",
+  "temporaryDefault": {
+    "optionIds": ["keep"],
+    "disclosure": "Current behavior will be preserved while waiting; choosing removal may require rework.",
+    "conflictsWithAnswer": false
+  },
+  "instruction": "Process this answer once. Deduplicate by answerId and call signal_board_ack with the outcome."
+}
