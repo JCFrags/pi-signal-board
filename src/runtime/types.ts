@@ -7,6 +7,7 @@ import type { BoardState } from '../domain/types.js';
 import type { CompatibilityResult } from '../integration/compatibility.js';
 import type { SessionHealthSnapshot, SessionPersistence } from '../integration/doctor.js';
 import type { PiSessionStore } from '../persistence/pi-session-store.js';
+import type { AnswerPersistenceService } from '../services/answer-persistence-service.js';
 import type { BoardViewCheckpointService } from '../services/board-view-checkpoint-service.js';
 import type { Diagnostics } from '../services/diagnostics.js';
 import type { ExpiryService } from '../services/expiry-service.js';
@@ -43,6 +44,7 @@ export interface SignalBoardRuntime {
   sessionStore?: PiSessionStore;
   updateService?: UpdateService;
   questionService?: QuestionService;
+  answerPersistenceService?: AnswerPersistenceService;
   expiryService?: ExpiryService;
   questionEscalationService?: QuestionEscalationService;
   boardViewCheckpointService?: BoardViewCheckpointService;

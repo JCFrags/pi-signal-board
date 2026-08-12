@@ -26,6 +26,7 @@ import {
 } from './integration/lifecycle.js';
 import { createPiSessionStore } from './persistence/pi-session-store.js';
 import type { RuntimeLifecycleHooks, SignalBoardRuntime } from './runtime/types.js';
+import { AnswerPersistenceService } from './services/answer-persistence-service.js';
 import { BoardViewCheckpointService } from './services/board-view-checkpoint-service.js';
 import { ExpiryService, type ExpiryTimerAdapter } from './services/expiry-service.js';
 import { QuestionEscalationService } from './services/question-escalation-service.js';
@@ -368,6 +369,18 @@ function constructRuntimeServices(
     config: runtime.config.config,
     rateCounter: questionRateCounter,
   });
+  runtime.answerPersistenceService = new AnswerPersistenceService({
+    queue: lifecycle.queue,
+    readState: () => requireCurrent().state,
+    swapState: (state) => {
+      requireCurrent().state = state;
+    },
+    append: (event) => sessionStore.append(event),
+    refresh,
+    afterMutationLocked,
+    clock: { now: adapters.now },
+    ids,
+  });
   runtime.questionEscalationService = new QuestionEscalationService({
     queue: lifecycle.queue,
     readState: () => requireCurrent().state,
@@ -447,6 +460,7 @@ export * from './commands/signalboard-command.js';
 export { RuntimeLifecycle } from './integration/lifecycle.js';
 export { RuntimeSlot } from './runtime/slot.js';
 export type * from './runtime/types.js';
+export * from './services/answer-persistence-service.js';
 export * from './services/board-view-checkpoint-service.js';
 export * from './ui/board/component.js';
 export * from './ui/board/model.js';
