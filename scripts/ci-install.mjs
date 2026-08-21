@@ -10,7 +10,11 @@ const markerPath = join(root, '.lockfile-bootstrap.json');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 function run(args) {
-  execFileSync(npm, args, { cwd: root, stdio: 'inherit' });
+  execFileSync(npm, args, {
+    cwd: root,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
 }
 
 if (existsSync(lockPath)) {
