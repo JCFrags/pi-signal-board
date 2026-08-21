@@ -4,7 +4,7 @@ Pi Signal Board keeps significant coding-agent updates visible outside the chat 
 
 ## Requirements
 
-- Node.js 22.19.0 or newer within Node 22 compatibility.
+- Node.js 22.19.0 or newer.
 - Pi coding agent `>=0.84.1 <0.85.0`.
 - An interactive terminal for the full board and answer UI.
 
@@ -34,6 +34,10 @@ pi -e npm:pi-signal-board
 - Agents receive three tools: `signal_board_update`, `signal_board_question`, and `signal_board_ack`.
 
 Answers are delivered at least once. The agent deduplicates by immutable answer ID and acknowledges whether the answer was applied.
+
+## Ownership
+
+Signal Board owns only its board events and asynchronous question inbox. The orchestrator remains the task authority. A todo product remains a local checklist. Signal Board does not replace either one.
 
 ## Data and privacy
 

@@ -22,7 +22,7 @@
     "clean": "node ./scripts/clean.mjs",
     "check": "biome check . && tsc -p tsconfig.json --noEmit",
     "format": "biome check --write .",
-    "test": "vitest run",
+    "test": "vitest run tests --exclude tests/performance/replay.test.ts && vitest run tests/performance/replay.test.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "build": "npm run clean && tsc -p tsconfig.build.json",

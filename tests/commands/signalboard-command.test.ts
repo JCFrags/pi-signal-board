@@ -266,7 +266,7 @@ describe('SB-028 command boundary', () => {
     },
   );
 
-  it('routes recommendation acceptance through confirmation and returns to the board without mutation', async () => {
+  it('persists and delivers a confirmed recommendation before returning to the board', async () => {
     const harness = new FakePiHarness();
     harness.replaceBranch([
       makeCustomEntry({
@@ -286,13 +286,30 @@ describe('SB-028 command boundary', () => {
 
     await commandHandler(harness)('', harness.context() as ExtensionCommandContext);
 
-    expect(lastNotice(harness)).toBe(
-      'Recommendation was validated, but saving is not available in this build (SB_UI_UNAVAILABLE). No state changed.',
+    expect(lastNotice(harness)).toMatch(
+      /^Answer ans_[0-9a-f-]+ was saved and queued for at-least-once delivery\.$/u,
     );
     expect(harness.uiCalls.filter((call) => call.surface === 'confirm')).toHaveLength(1);
     expect(harness.uiCalls.filter((call) => call.surface === 'custom')).toHaveLength(2);
-    expect(harness.appendCalls).toHaveLength(0);
-    expect(harness.sendCalls).toHaveLength(0);
+    expect(
+      harness.appendCalls.map((call) => (call.data as { eventType?: string }).eventType),
+    ).toEqual(['question.answered', 'answer.delivery_queued']);
+    expect(harness.sendCalls).toHaveLength(1);
+    expect(harness.sendCalls[0]).toMatchObject({
+      message: {
+        customType: 'pi-signal-board/answer',
+        details: {
+          schemaVersion: 1,
+          questionId: 'qst_22222222-2222-4222-8222-222222222222',
+          answer: {
+            kind: 'single_or_text',
+            optionId: 'keep',
+            optionLabel: 'Keep for one release',
+          },
+        },
+      },
+      options: { triggerTurn: true, deliverAs: 'steer' },
+    });
   });
 
   it('rejects a tree replacement during recommendation confirmation at the shared writer boundary', async () => {
@@ -322,9 +339,7 @@ describe('SB-028 command boundary', () => {
 
     await commandHandler(harness)('', context);
 
-    expect(lastNotice(harness)).toBe(
-      'Recommendation unavailable (SB_STATE_CONFLICT). No state changed.',
-    );
+    expect(lastNotice(harness)).toBe('Recommendation unavailable (SB_STATE_CONFLICT).');
     expect(harness.uiCalls.filter((call) => call.surface === 'custom')).toHaveLength(2);
     expect(harness.appendCalls).toHaveLength(0);
     expect(harness.sendCalls).toHaveLength(0);

@@ -138,7 +138,8 @@ describe('host compatibility', () => {
     const result = evaluateCurrentHostCompatibility();
 
     expect(result.supported).toBe(true);
-    expect(result.node.detectedVersion).toBe('22.19.0');
+    expect(result.node.detectedVersion).toBe(process.versions.node);
+    expect(result.node.supportedRange).toBe('>=22.19.0');
     expect(result.pi.detectedVersion).toBe('0.84.1');
   });
 });

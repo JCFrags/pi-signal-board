@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Text } from '@earendil-works/pi-tui';
-import { Type } from 'typebox';
 import {
   registerSignalBoardShortcut,
   type ShortcutRegistration,
@@ -15,7 +14,7 @@ import {
 import type { ConfigLoadContext, FixedConfigReader } from './config/loader.js';
 import { loadConfiguration } from './config/loader.js';
 import type { ConfigLoadResult } from './config/types.js';
-import { ACK_TOOL_NAME, ANSWER_CUSTOM_TYPE, COMMAND_INVOCATION } from './constants.js';
+import { ANSWER_CUSTOM_TYPE, COMMAND_INVOCATION } from './constants.js';
 import { RuntimeIdGenerator } from './domain/ids.js';
 import type { CompatibilityResult } from './integration/compatibility.js';
 import { evaluateCurrentHostCompatibility } from './integration/compatibility.js';
@@ -26,6 +25,9 @@ import {
 } from './integration/lifecycle.js';
 import { createPiSessionStore } from './persistence/pi-session-store.js';
 import type { RuntimeLifecycleHooks, SignalBoardRuntime } from './runtime/types.js';
+import { TurnAcknowledgementRateCounter } from './services/acknowledgement-rate-counter.js';
+import { AcknowledgementService } from './services/acknowledgement-service.js';
+import { AnswerDeliveryService } from './services/answer-delivery-service.js';
 import { AnswerPersistenceService } from './services/answer-persistence-service.js';
 import { BoardViewCheckpointService } from './services/board-view-checkpoint-service.js';
 import { ExpiryService, type ExpiryTimerAdapter } from './services/expiry-service.js';
@@ -34,6 +36,7 @@ import { TurnQuestionRateCounter } from './services/question-rate-counter.js';
 import { QuestionService } from './services/question-service.js';
 import { TurnUpdateRateCounter } from './services/update-rate-counter.js';
 import { UpdateService } from './services/update-service.js';
+import { registerAckTool } from './tools/ack-tool.js';
 import { registerQuestionTool } from './tools/question-tool.js';
 import {
   PendingToolFailures,
@@ -87,10 +90,6 @@ function safeEmit(
   }
 }
 
-function runtimeErrorText(code: string): string {
-  return `Signal Board runtime unavailable (${code}). No state changed.`;
-}
-
 /** Build the extension factory with deterministic host and lifecycle adapters. */
 export function createSignalBoardExtension(
   overrides: Partial<SignalBoardExtensionAdapters> = {},
@@ -129,6 +128,7 @@ export function createSignalBoardExtension(
       async resetTurnRateCountersLocked(runtime) {
         runtime.updateRateCounter?.reset();
         runtime.questionRateCounter?.reset();
+        runtime.acknowledgementRateCounter?.reset();
         await adapters.hooks.resetTurnRateCountersLocked?.(runtime);
       },
       async onTimerLocked(runtime) {
@@ -160,6 +160,21 @@ export function createSignalBoardExtension(
           return;
         }
         safeClearExpiryHandle(adapters.expiryTimers, handle);
+      },
+      async recoverDeliveryLocked(runtime) {
+        constructRuntimeServices(runtime, pi, lifecycle, adapters);
+        const result = await runtime.answerDeliveryService?.recoverLocked();
+        if (result !== undefined && !result.ok) {
+          runtime.diagnostics.record({
+            at: safeAdapterTimestamp(adapters.now),
+            code: result.error.code,
+            severity: 'error',
+            area: result.error.code === 'SB_PERSISTENCE_FAILED' ? 'persistence' : 'delivery',
+            category:
+              result.error.code === 'SB_PERSISTENCE_FAILED' ? 'append_rejected' : 'host_rejected',
+          });
+        }
+        await adapters.hooks.recoverDeliveryLocked?.(runtime);
       },
       async escalateConditionalQuestionsLocked(runtime) {
         constructRuntimeServices(runtime, pi, lifecycle, adapters);
@@ -248,22 +263,7 @@ function registerStaticTools(
 ): void {
   registerUpdateTool(pi, lifecycle, pendingFailures);
   registerQuestionTool(pi, lifecycle, pendingFailures);
-  for (const [name, label] of [[ACK_TOOL_NAME, 'Signal Board Acknowledgement']] as const) {
-    pi.registerTool({
-      name,
-      label,
-      description: `${label} runtime shell. Product mutations are added in a later slice.`,
-      parameters: Type.Object({}, { additionalProperties: false }),
-      async execute() {
-        const access = await lifecycle.runHealthy(() => undefined);
-        const code = access.ok ? 'SB_NOT_INITIALIZED' : access.error.code;
-        return {
-          content: [{ type: 'text', text: runtimeErrorText(code) }],
-          details: { ok: false, error: { code } },
-        };
-      },
-    });
-  }
+  registerAckTool(pi, lifecycle, pendingFailures);
 }
 
 function constructRuntimeServices(
@@ -277,6 +277,7 @@ function constructRuntimeServices(
   const ids = new RuntimeIdGenerator();
   const rateCounter = new TurnUpdateRateCounter();
   const questionRateCounter = new TurnQuestionRateCounter();
+  const acknowledgementRateCounter = new TurnAcknowledgementRateCounter();
   const sessionStore = createPiSessionStore(pi, {
     correlationIds: { nextCorrelationId: () => randomUUID() },
     at: () => adapters.now().toISOString(),
@@ -293,6 +294,7 @@ function constructRuntimeServices(
   runtime.ids = ids;
   runtime.updateRateCounter = rateCounter;
   runtime.questionRateCounter = questionRateCounter;
+  runtime.acknowledgementRateCounter = acknowledgementRateCounter;
   runtime.sessionStore = sessionStore;
   const refresh = async (): Promise<void> => {
     const current = requireCurrent();
@@ -381,6 +383,35 @@ function constructRuntimeServices(
     clock: { now: adapters.now },
     ids,
   });
+  runtime.answerDeliveryService = new AnswerDeliveryService({
+    queue: lifecycle.queue,
+    readState: () => requireCurrent().state,
+    swapState: (state) => {
+      requireCurrent().state = state;
+    },
+    append: (event) => sessionStore.append(event),
+    refresh,
+    afterMutationLocked,
+    sendMessage: (message, options) => pi.sendMessage(message, options),
+    clock: { now: adapters.now },
+    ids,
+    config: runtime.config.config,
+  });
+  runtime.acknowledgementService = new AcknowledgementService({
+    queue: lifecycle.queue,
+    readState: () => requireCurrent().state,
+    swapState: (state) => {
+      requireCurrent().state = state;
+    },
+    append: (event) => sessionStore.append(event),
+    refresh,
+    afterMutationLocked,
+    clock: { now: adapters.now },
+    ids,
+    cwd: runtime.context.cwd,
+    config: runtime.config.config,
+    rateCounter: acknowledgementRateCounter,
+  });
   runtime.questionEscalationService = new QuestionEscalationService({
     queue: lifecycle.queue,
     readState: () => requireCurrent().state,
@@ -460,6 +491,8 @@ export * from './commands/signalboard-command.js';
 export { RuntimeLifecycle } from './integration/lifecycle.js';
 export { RuntimeSlot } from './runtime/slot.js';
 export type * from './runtime/types.js';
+export * from './services/acknowledgement-service.js';
+export * from './services/answer-delivery-service.js';
 export * from './services/answer-persistence-service.js';
 export * from './services/board-view-checkpoint-service.js';
 export * from './ui/board/component.js';

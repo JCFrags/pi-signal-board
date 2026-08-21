@@ -5,7 +5,7 @@ import type {
 } from '@earendil-works/pi-coding-agent';
 
 import { COMMAND_INVOCATION, COMMAND_NAME, PRODUCT_ID } from '../constants.js';
-import { fail, signalBoardError } from '../domain/errors.js';
+import { fail, signalBoardError, succeed } from '../domain/errors.js';
 import { selectSummary } from '../domain/selectors.js';
 import { formatDoctorReport } from '../integration/doctor.js';
 import type { RuntimeLifecycle } from '../integration/lifecycle.js';
@@ -254,12 +254,30 @@ async function openBoard(
         ? collectAnswerIntent(context, detail?.projection.item, action.expectedRevision)
         : collectRecommendationIntent(context, detail?.projection.item, action.expectedRevision));
       if (result.kind === 'intent') {
-        const preflight = await actionCoordinator.preflight(actionCapture);
+        const mutation = await actionCoordinator.run(actionCapture, async (runtime, question) => {
+          const persistence = runtime.answerPersistenceService;
+          const delivery = runtime.answerDeliveryService;
+          const ids = runtime.ids;
+          if (persistence === undefined || delivery === undefined || ids === undefined) {
+            return fail(signalBoardError('SB_NOT_INITIALIZED'));
+          }
+          const saved = await persistence.answerQuestionLocked({
+            commandId: ids.command(),
+            questionId: question.id as typeof result.intent.questionId,
+            expectedRevision: action.expectedRevision,
+            source: result.intent.source,
+            value: result.intent.value,
+          });
+          if (!saved.ok) return saved;
+          const sent = await delivery.deliverLocked(saved.value.answer.id);
+          if (!sent.ok) return sent;
+          return succeed({ answerId: saved.value.answer.id });
+        });
         dependencies.emit(
           context,
-          preflight.ok
-            ? `${result.intent.source === 'recommendation' ? 'Recommendation' : 'Answer input'} was validated, but saving is not available in this build (SB_UI_UNAVAILABLE). No state changed.`
-            : `${action.type === 'accept_recommendation' ? 'Recommendation' : 'Answer interaction'} unavailable (${preflight.error.code}). No state changed.`,
+          mutation.ok
+            ? `Answer ${mutation.value.answerId} was saved and queued for at-least-once delivery.`
+            : `${action.type === 'accept_recommendation' ? 'Recommendation' : 'Answer interaction'} unavailable (${mutation.error.code}).`,
         );
       } else if (result.kind === 'unavailable') {
         dependencies.emit(
@@ -267,6 +285,22 @@ async function openBoard(
           `${action.type === 'accept_recommendation' ? 'Recommendation' : 'Answer interaction'} unavailable (${result.code}). No state changed.`,
         );
       }
+      continue;
+    }
+
+    if (action.type === 'retry_delivery') {
+      const result = await actionCoordinator.run(actionCapture, (runtime) => {
+        const delivery = runtime.answerDeliveryService;
+        return delivery === undefined
+          ? fail(signalBoardError('SB_NOT_INITIALIZED'))
+          : delivery.deliverLocked(action.answerId);
+      });
+      dependencies.emit(
+        context,
+        result.ok
+          ? `Answer ${result.value.answer.id} was queued again for at-least-once delivery.`
+          : `Answer delivery retry unavailable (${result.error.code}).`,
+      );
       continue;
     }
 

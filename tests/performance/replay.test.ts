@@ -59,7 +59,10 @@ describe('replay performance', () => {
     const median = percentile(samples, 0.5);
     const p95 = percentile(samples, 0.95);
     console.info(`replay-2000 median=${median.toFixed(2)}ms p95=${p95.toFixed(2)}ms`);
-    expect(p95).toBeLessThanOrEqual(120);
+    // V8 coverage instrumentation changes this timing by design. The normal test job owns NFR-001.
+    if (process.env.npm_lifecycle_event !== 'test:coverage') {
+      expect(p95).toBeLessThanOrEqual(120);
+    }
   });
 
   it('NFR-020 provides a deterministic scalable 10,000-event fixture', () => {
