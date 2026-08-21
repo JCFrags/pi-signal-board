@@ -34,7 +34,7 @@ try {
   ({ stdout } = await execFileAsync(
     process.platform === 'win32' ? 'npm.cmd' : 'npm',
     ['pack', '--json', '--dry-run', '--ignore-scripts'],
-    { maxBuffer: 4 * 1024 * 1024 },
+    { maxBuffer: 4 * 1024 * 1024, shell: process.platform === 'win32' },
   ));
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
