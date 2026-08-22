@@ -37,7 +37,7 @@
     "agent"
   ],
   "license": "MIT",
-  "author": "Pi Signal Board contributors",
+  "author": "Agent Board contributors",
   "engines": {
     "node": ">=22.19.0"
   },

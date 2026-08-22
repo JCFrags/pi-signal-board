@@ -10,12 +10,12 @@ const ACCESS_ERRORS: Readonly<Record<RuntimeAccessError['code'], RuntimeAccessEr
   Object.freeze({
     SB_NOT_INITIALIZED: Object.freeze({
       code: 'SB_NOT_INITIALIZED',
-      message: 'Signal Board is not initialized.',
+      message: 'Agent Board is not initialized.',
       retryable: true,
     }),
     SB_DISABLED: Object.freeze({
       code: 'SB_DISABLED',
-      message: 'Signal Board is disabled by configuration.',
+      message: 'Agent Board is disabled by configuration.',
       retryable: false,
     }),
     SB_UNSUPPORTED_HOST: Object.freeze({
@@ -25,7 +25,7 @@ const ACCESS_ERRORS: Readonly<Record<RuntimeAccessError['code'], RuntimeAccessEr
     }),
     SB_INTERNAL: Object.freeze({
       code: 'SB_INTERNAL',
-      message: 'Signal Board startup did not complete safely.',
+      message: 'Agent Board startup did not complete safely.',
       retryable: true,
     }),
   });

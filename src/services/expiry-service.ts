@@ -33,6 +33,7 @@ export interface ExpiryServiceDependencies {
   readonly swapState: (state: BoardState) => void;
   readonly append: (event: QuestionStaledEvent) => Promise<Result<void>>;
   readonly refresh: (state: BoardState) => void | Promise<void>;
+  readonly afterMutation?: () => void | Promise<void>;
   readonly clock: Clock;
   readonly ids: Pick<IdGenerator, 'event'>;
   readonly timers: ExpiryTimerAdapter;
@@ -128,6 +129,7 @@ export class ExpiryService {
       }
 
       this.#dependencies.swapState(reduced.state);
+      await this.#dependencies.afterMutation?.();
       this.#reservedEventIds.delete(commandId);
       transitioned += 1;
       try {

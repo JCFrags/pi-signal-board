@@ -5,8 +5,12 @@ import {
   ANSWER_CUSTOM_TYPE,
   COMMAND_INVOCATION,
   COMMAND_NAME,
+  COMPATIBILITY_COMMAND_INVOCATION,
+  COMPATIBILITY_COMMAND_NAME,
   CONFIG_FILE_NAME,
   EVENT_CUSTOM_TYPE,
+  LEGACY_COMMAND_INVOCATION,
+  LEGACY_COMMAND_NAME,
   MAX_CONFIG_BYTES,
   PRODUCT_ID,
   PRODUCT_NAME,
@@ -27,7 +31,7 @@ describe('product constants', () => {
   it('exports the exact package and compatibility facts', () => {
     expect({ PRODUCT_ID, PRODUCT_NAME, PRODUCT_VERSION }).toEqual({
       PRODUCT_ID: 'pi-signal-board',
-      PRODUCT_NAME: 'Pi Signal Board',
+      PRODUCT_NAME: 'Agent Board',
       PRODUCT_VERSION: '0.1.0',
     });
     expect(SUPPORTED_NODE_RANGE).toBe('>=22.19.0');
@@ -39,11 +43,15 @@ describe('product constants', () => {
     expect(ANSWER_CUSTOM_TYPE).toBe('pi-signal-board/answer');
     expect(WIDGET_ID).toBe('pi-signal-board');
     expect(STATUS_ID).toBe('pi-signal-board');
-    expect(COMMAND_NAME).toBe('signalboard');
-    expect(COMMAND_INVOCATION).toBe('/signalboard');
+    expect(COMMAND_NAME).toBe('agent-board');
+    expect(COMMAND_INVOCATION).toBe('/agent-board');
+    expect(COMPATIBILITY_COMMAND_NAME).toBe('agentboard');
+    expect(COMPATIBILITY_COMMAND_INVOCATION).toBe('/agentboard');
+    expect(LEGACY_COMMAND_NAME).toBe('signalboard');
+    expect(LEGACY_COMMAND_INVOCATION).toBe('/signalboard');
     expect(SHORTCUT).toBe('ctrl+shift+b');
     expect(SHORTCUT_DISPLAY).toBe('Ctrl+Shift+B');
-    expect(SHORTCUT_DESCRIPTION).toBe('Open Pi Signal Board');
+    expect(SHORTCUT_DESCRIPTION).toBe('Open Agent Board');
   });
 
   it('exports exact tool and configuration facts for later lanes', () => {

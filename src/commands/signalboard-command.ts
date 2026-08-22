@@ -4,7 +4,13 @@ import type {
   ExtensionContext,
 } from '@earendil-works/pi-coding-agent';
 
-import { COMMAND_INVOCATION, COMMAND_NAME, PRODUCT_ID } from '../constants.js';
+import {
+  COMMAND_INVOCATION,
+  COMMAND_NAME,
+  COMPATIBILITY_COMMAND_NAME,
+  LEGACY_COMMAND_NAME,
+  PRODUCT_ID,
+} from '../constants.js';
 import { fail, signalBoardError, succeed } from '../domain/errors.js';
 import { selectSummary } from '../domain/selectors.js';
 import { formatDoctorReport } from '../integration/doctor.js';
@@ -22,7 +28,7 @@ import {
 } from './dismiss-archive-actions.js';
 import type { ShortcutAvailability } from './shortcut-registration.js';
 
-const COMMAND_PATTERN = /^signalboard(?::[1-9][0-9]*)?$/u;
+const COMMAND_PATTERN = /^(?:agent-board|agentboard|signalboard)(?::[1-9][0-9]*)?$/u;
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z';
 
 export interface CommandMetadata {
@@ -61,8 +67,14 @@ export function resolveEffectiveCommand(
     (command) => command.source === 'extension' && COMMAND_PATTERN.test(command.name),
   );
   const owned = candidates.filter((command) => metadataIdentifiesPackage(command, ownEntryPath));
+  const preferred = candidates.filter(
+    (command) => command.name.startsWith(`${COMMAND_NAME}:`) || command.name === COMMAND_NAME,
+  );
   const selected =
-    owned.length === 1 ? owned[0] : candidates.length === 1 ? candidates[0] : undefined;
+    owned.find((command) => command.name === COMMAND_NAME) ??
+    (owned.length === 1 ? owned[0] : undefined) ??
+    (preferred.length === 1 ? preferred[0] : undefined) ??
+    (candidates.length === 1 ? candidates[0] : undefined);
   const ambiguous = selected === undefined;
   const invocationName = selected?.name ?? COMMAND_NAME;
   return Object.freeze({
@@ -70,7 +82,10 @@ export function resolveEffectiveCommand(
     invocationName,
     invocation: `/${invocationName}`,
     discovered: selected !== undefined,
-    collision: candidates.length > 1 || invocationName !== COMMAND_NAME,
+    collision:
+      preferred.length > 1 ||
+      (preferred.length === 0 && candidates.length > 1) ||
+      (selected !== undefined && selected.name !== COMMAND_NAME),
     ambiguous,
   });
 }
@@ -105,11 +120,20 @@ export function registerSignalBoardCommand(
     return info;
   };
 
+  const handler = async (raw: string, context: ExtensionCommandContext): Promise<void> => {
+    await handleSignalBoardCommand(raw, context, dependencies, resolve);
+  };
   pi.registerCommand(COMMAND_NAME, {
-    description: 'Open Pi Signal Board or show its summary and diagnostics.',
-    handler: async (raw, context) => {
-      await handleSignalBoardCommand(raw, context, dependencies, resolve);
-    },
+    description: 'Open Agent Board or show its summary and diagnostics.',
+    handler,
+  });
+  pi.registerCommand(COMPATIBILITY_COMMAND_NAME, {
+    description: 'Open Agent Board (compatibility alias).',
+    handler,
+  });
+  pi.registerCommand(LEGACY_COMMAND_NAME, {
+    description: 'Open Agent Board (legacy Signal Board alias).',
+    handler,
   });
   return resolve;
 }
@@ -230,7 +254,7 @@ async function openBoard(
       recordUiFailure(dependencies.lifecycle.slot.current(), dependencies.now);
       dependencies.emit(
         context,
-        'Signal Board interactive UI failed (SB_UI_UNAVAILABLE). No state changed.',
+        'Agent Board interactive UI failed (SB_UI_UNAVAILABLE). No state changed.',
       );
       return;
     } finally {
@@ -352,8 +376,8 @@ async function openBoard(
     dependencies.emit(
       context,
       preflight.ok
-        ? 'Signal Board action is not available in this build (SB_UI_UNAVAILABLE). No state changed.'
-        : `Signal Board action unavailable (${preflight.error.code}). No state changed.`,
+        ? 'Agent Board action is not available in this build (SB_UI_UNAVAILABLE). No state changed.'
+        : `Agent Board action unavailable (${preflight.error.code}). No state changed.`,
     );
   }
 
@@ -464,11 +488,11 @@ function safeTimestamp(now: () => Date): string {
 }
 
 function runtimeFailure(code: string): string {
-  return `Signal Board runtime unavailable (${code}). No state changed.`;
+  return `Agent Board runtime unavailable (${code}). No state changed.`;
 }
 
 function internalFailure(): string {
-  return 'Signal Board command failed safely (SB_INTERNAL). No state changed.';
+  return 'Agent Board command failed safely (SB_INTERNAL). No state changed.';
 }
 
 function countLabel(count: number, singular: string): string {

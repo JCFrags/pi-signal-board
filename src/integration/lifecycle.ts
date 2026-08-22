@@ -290,7 +290,7 @@ export class RuntimeLifecycle {
           ok: false,
           error: {
             code: 'SB_INTERNAL',
-            message: 'Signal Board startup did not complete safely.',
+            message: 'Agent Board startup did not complete safely.',
             retryable: true,
           },
         };
@@ -428,12 +428,12 @@ export class RuntimeLifecycle {
     runtime.notifications.add('startup');
     const message =
       runtime.status === 'unsupported'
-        ? 'Signal Board is unavailable on this host. Run /signalboard doctor.'
+        ? 'Agent Board is unavailable on this host. Run /agentboard doctor.'
         : runtime.status === 'disabled'
-          ? 'Signal Board is disabled. Run /signalboard doctor.'
+          ? 'Agent Board is disabled. Run /agentboard doctor.'
           : runtime.status === 'healthy'
-            ? 'Signal Board started with recoverable warnings. Run /signalboard doctor.'
-            : 'Signal Board startup failed safely. Run /signalboard doctor.';
+            ? 'Agent Board started with recoverable warnings. Run /agentboard doctor.'
+            : 'Agent Board startup failed safely. Run /agentboard doctor.';
     safeUiCall(runtime, 'notification', () => runtime.context.ui.notify(message, 'warning'));
   }
 }
@@ -586,7 +586,7 @@ function safeUiCall(runtime: SignalBoardRuntime, _surface: string, operation: ()
 function internalPublicError() {
   return Object.freeze({
     code: 'SB_INTERNAL' as const,
-    message: 'Signal Board encountered an unexpected internal error.',
+    message: 'Agent Board encountered an unexpected internal error.',
     retryable: true,
   });
 }

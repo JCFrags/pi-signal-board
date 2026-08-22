@@ -921,15 +921,15 @@ class MutationResistantMap<Key, Value> implements ReadonlyMap<Key, Value> {
   }
 
   set(_key: Key, _value: Value): never {
-    throw new TypeError('Signal Board state maps are read-only.');
+    throw new TypeError('Agent Board state maps are read-only.');
   }
 
   delete(_key: Key): never {
-    throw new TypeError('Signal Board state maps are read-only.');
+    throw new TypeError('Agent Board state maps are read-only.');
   }
 
   clear(): never {
-    throw new TypeError('Signal Board state maps are read-only.');
+    throw new TypeError('Agent Board state maps are read-only.');
   }
 }
 

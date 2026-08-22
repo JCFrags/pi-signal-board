@@ -12,4 +12,4 @@ The maintainer should acknowledge a complete report within five business days, a
 
 ## Security boundary
 
-Pi packages execute with the user's process permissions. Signal Board reduces its own authority by making no network requests, launching no processes, executing no shell commands, reading no arbitrary attachment targets, and treating attachments as inert metadata. These constraints are release requirements, not an operating-system sandbox.
+Pi packages execute with the user's process permissions. Agent Board reduces its own authority by making no network requests, launching no processes, executing no shell commands, reading no arbitrary attachment targets, and treating attachments as inert metadata. These constraints are release requirements, not an operating-system sandbox.

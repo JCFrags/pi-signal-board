@@ -233,7 +233,7 @@ export class FakePiHarness {
       getSessionName: () => undefined,
     };
 
-    // The harness supplies only the documented members used by Signal Board. The cast is the
+    // The harness supplies only the documented members used by Agent Board. The cast is the
     // validated Pi API boundary; tests fail when product code reaches an unmodelled member.
     return {
       ui,
@@ -483,7 +483,7 @@ export class FakePiHarness {
       getSessionName: () => undefined,
       setLabel: () => undefined,
       sendUserMessage: () => undefined,
-      events: { on: () => undefined, emit: () => undefined },
+      events: { on: () => () => undefined, emit: () => undefined },
     };
 
     // This is the single fake host boundary. Product calls not represented above fail at runtime.

@@ -55,7 +55,7 @@ function refresh(
     config: effectiveConfig,
     currentTime: time(59),
     completedWindowCutoff: time(0),
-    effectiveCommand: '/signalboard',
+    effectiveCommand: '/agentboard',
     ...overrides,
   };
 }
@@ -74,7 +74,7 @@ function renderInstalledWidget(harness: FakePiHarness, width: number): string[] 
   return (content as () => Component)().render(width);
 }
 
-describe('Signal Board UI adapter', () => {
+describe('Agent Board UI adapter', () => {
   it('sets exact actionable, active, and unread no-color status counts', () => {
     const harness = new FakePiHarness();
     const diagnostics = createDiagnostics();

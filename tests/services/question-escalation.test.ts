@@ -227,8 +227,8 @@ describe('question escalation service', () => {
     ]);
     expect(statuses(harness.state())).toEqual(['blocking', 'pending', 'blocking']);
     expect(harness.notifications).toEqual([
-      { message: 'Signal Board escalated Q-1 to blocking.', severity: 'warning' },
-      { message: 'Signal Board escalated Q-3 to blocking.', severity: 'warning' },
+      { message: 'Agent Board escalated Q-1 to blocking.', severity: 'warning' },
+      { message: 'Agent Board escalated Q-3 to blocking.', severity: 'warning' },
     ]);
     expect(harness.refreshes).toHaveLength(2);
     expect(harness.forbiddenCalls).toEqual({ messages: 0, defaults: 0, answers: 0, turns: 0 });

@@ -40,7 +40,7 @@ function commandHandler(
   harness: FakePiHarness,
 ): (args: string, context: ExtensionCommandContext) => Promise<void> {
   const registration = harness.registrations.commands[0];
-  if (registration === undefined) throw new Error('Missing Signal Board command.');
+  if (registration === undefined) throw new Error('Missing Agent Board command.');
   return (
     registration.options as {
       handler(args: string, context: ExtensionCommandContext): Promise<void>;
@@ -215,8 +215,8 @@ describe('SB-028 command boundary', () => {
     await harness.dispatch('session_start');
     await commandHandler(harness)('doctor', harness.context() as ExtensionCommandContext);
     const output = lastNotice(harness) ?? '';
-    expect(output).toContain('PI SIGNAL BOARD DOCTOR');
-    expect(output).toContain('Command: /signalboard');
+    expect(output).toContain('AGENT BOARD DOCTOR');
+    expect(output).toContain('Command: /agent-board');
     expect(output).not.toContain('/home/');
     expect(output).not.toContain('session.jsonl');
   });
@@ -261,7 +261,7 @@ describe('SB-028 command boundary', () => {
         commandHandler(harness)(args, harness.context() as ExtensionCommandContext),
       ).resolves.toBeUndefined();
       expect(lastNotice(harness)).toBe(
-        'Usage: /signalboard [inbox|updates|decisions|history|summary|doctor]\nSubcommands are case-sensitive. Extra arguments are not accepted.',
+        'Usage: /agent-board [inbox|updates|decisions|history|summary|doctor]\nSubcommands are case-sensitive. Extra arguments are not accepted.',
       );
     },
   );
@@ -502,7 +502,7 @@ describe('SB-028 command boundary', () => {
     } as ExtensionCommandContext;
     await expect(commandHandler(harness)('', context)).resolves.toBeUndefined();
     expect(lastNotice(harness)).toBe(
-      'Signal Board interactive UI failed (SB_UI_UNAVAILABLE). No state changed.',
+      'Agent Board interactive UI failed (SB_UI_UNAVAILABLE). No state changed.',
     );
     expect(lastNotice(harness)).not.toContain('SYNTHETIC_PRIVATE_COMPONENT_STACK');
   });
@@ -519,7 +519,7 @@ describe('SB-028 command boundary', () => {
     });
     await commandHandler(clockFailure)('', clockFailure.context() as ExtensionCommandContext);
     expect(lastNotice(clockFailure)).toBe(
-      'Signal Board command failed safely (SB_INTERNAL). No state changed.',
+      'Agent Board command failed safely (SB_INTERNAL). No state changed.',
     );
     expect(lastNotice(clockFailure)).not.toContain('SYNTHETIC_CLOCK_SECRET');
   });
@@ -552,7 +552,7 @@ describe('SB-028 effective command discovery', () => {
       resolveEffectiveCommand([
         { name: 'signalboard', source: 'extension', sourceInfo: sourceInfo(PRODUCT, '/ours') },
       ]),
-    ).toMatchObject({ invocation: '/signalboard', discovered: true, collision: false });
+    ).toMatchObject({ invocation: '/signalboard', discovered: true, collision: true });
     expect(
       resolveEffectiveCommand(
         [
@@ -586,7 +586,7 @@ describe('SB-028 effective command discovery', () => {
         { name: 'signalboard:1', source: 'extension', sourceInfo: sourceInfo('one', '/one') },
         { name: 'signalboard:2', source: 'extension', sourceInfo: sourceInfo('two', '/two') },
       ]),
-    ).toMatchObject({ invocation: '/signalboard', discovered: false, ambiguous: true });
+    ).toMatchObject({ invocation: '/agent-board', discovered: false, ambiguous: true });
   });
 
   it('reports the actual suffix in doctor and records one content-free ambiguity diagnostic', async () => {

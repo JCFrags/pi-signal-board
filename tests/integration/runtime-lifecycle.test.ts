@@ -117,13 +117,13 @@ describe('runtime lifecycle', () => {
     expect(harness.timers.pending()).toHaveLength(1);
     expect(refreshes).toEqual([1, 2]);
     expect(harness.registrationCount('tools')).toBe(3);
-    expect(harness.registrationCount('commands')).toBe(1);
+    expect(harness.registrationCount('commands')).toBe(3);
     expect(harness.registrationCount('shortcuts')).toBe(1);
     expect(harness.registrationCount('entryRenderers')).toBe(0);
     expect(harness.registrationCount('messageRenderers')).toBe(1);
-    expect(harness.handlerCount('session_start')).toBe(2);
+    expect(harness.handlerCount('session_start')).toBe(3);
     expect(harness.handlerCount('session_tree')).toBe(1);
-    expect(harness.handlerCount('session_shutdown')).toBe(2);
+    expect(harness.handlerCount('session_shutdown')).toBe(3);
     expect(harness.handlerCount('tool_result')).toBe(1);
   });
 

@@ -29,7 +29,7 @@ function setup(harness = new FakePiHarness(), injectedRefresh?: () => void) {
       warnings: [],
     }),
     now: () => new Date('2026-08-12T10:20:00.000Z'),
-    effectiveCommand: () => '/signalboard:2',
+    effectiveCommand: () => '/agentboard:2',
     writePrint: () => undefined,
     hooks: {
       refreshLocked() {
@@ -66,7 +66,7 @@ function refreshRetainedAdapter(
     config: DEFAULT_CONFIG,
     currentTime: '2026-08-12T10:20:00.000Z',
     completedWindowCutoff: '2026-08-12T10:10:00.000Z',
-    effectiveCommand: '/signalboard:2',
+    effectiveCommand: '/agentboard:2',
   });
 }
 
@@ -87,7 +87,7 @@ describe('runtime-owned UI adapter wiring', () => {
     });
     expect(test.lifecycle.slot.current()?.ui).toBe(adapter);
     expect(installedLines(test.harness).join('\n')).toContain('[BLOCKED] U-1');
-    expect(installedLines(test.harness).at(-1)).toBe('Open /signalboard:2');
+    expect(installedLines(test.harness).at(-1)).toBe('Open /agentboard:2');
     expect(surfaceCalls(test.harness, 'setStatus').at(-1)?.args[1]).toBe('Signal: 0Q 1U 1 new');
     expect(test.hookOrder).toEqual(['injected-refresh', 'injected-refresh']);
 

@@ -19,6 +19,7 @@ export interface QuestionEscalationDependencies {
   readonly swapState: (state: BoardState) => void;
   readonly append: (event: QuestionEscalatedEvent) => Promise<Result<void>>;
   readonly refresh: (state: BoardState) => void | Promise<void>;
+  readonly afterMutation?: () => void | Promise<void>;
   readonly notify: (message: string, severity: 'warning') => void | Promise<void>;
   readonly recordPostDurableFailure?: (area: 'notification' | 'ui', at: string) => void;
   readonly clock: Clock;
@@ -106,6 +107,7 @@ export class QuestionEscalationService {
       if (!appended.ok) return appended;
 
       this.#dependencies.swapState(reduced.state);
+      await this.#dependencies.afterMutation?.();
       this.#reservedEventIds.delete(commandId);
       accepted.push(event);
       await this.#postDurable(current.displayId, reduced.state, now);
@@ -118,7 +120,7 @@ export class QuestionEscalationService {
     if (this.#dependencies.config.notifications.questionEscalated) {
       try {
         await this.#dependencies.notify(
-          `Signal Board escalated ${displayId} to blocking.`,
+          `Agent Board escalated ${displayId} to blocking.`,
           'warning',
         );
       } catch {
@@ -167,7 +169,7 @@ function isCanonicalTimestamp(value: string): boolean {
 function internalError() {
   return Object.freeze({
     code: 'SB_INTERNAL' as const,
-    message: 'Signal Board encountered an unexpected internal error.',
+    message: 'Agent Board encountered an unexpected internal error.',
     retryable: true,
   });
 }

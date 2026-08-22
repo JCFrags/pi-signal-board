@@ -115,7 +115,7 @@ export const configDocumentSchema = deepFreeze(
     {
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       $id: 'https://schemas.pi-signal-board.local/config.schema.json',
-      title: 'Pi Signal Board configuration',
+      title: 'Agent Board configuration',
       description:
         'Global or trusted-project configuration. Unknown properties and null values are rejected. Missing fields inherit lower-precedence values/defaults.',
       additionalProperties: false,

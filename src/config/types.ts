@@ -1,4 +1,4 @@
-/** Delivery timing accepted by Pi Signal Board configuration version 1. */
+/** Delivery timing accepted by Agent Board configuration version 1. */
 export type ConfigDeliveryMode = 'steer' | 'followUp' | 'nextTurn';
 
 /** Policy that controls question escalation when an agent settles. */

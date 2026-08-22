@@ -8,7 +8,7 @@ export type SignalBoardCommand =
 
 const TAB_SET = new Set<string>(BOARD_TABS);
 
-/** Parse only the exact case-sensitive Signal Board command grammar. */
+/** Parse only the exact case-sensitive Agent Board command grammar. */
 export function parseSignalBoardCommand(raw: string): SignalBoardCommand {
   const trimmed = raw.trim();
   if (trimmed.length === 0) return Object.freeze({ kind: 'open' });

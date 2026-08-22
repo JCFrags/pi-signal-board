@@ -1,6 +1,6 @@
-/** Stable package and product identifiers. */
+/** Stable package identifier and user-facing product name. */
 export const PRODUCT_ID = 'pi-signal-board';
-export const PRODUCT_NAME = 'Pi Signal Board';
+export const PRODUCT_NAME = 'Agent Board';
 export const PRODUCT_VERSION = '0.1.0';
 
 /** Version ranges enforced by host compatibility checks. */
@@ -19,11 +19,15 @@ export const WIDGET_ID = PRODUCT_ID;
 export const STATUS_ID = PRODUCT_ID;
 
 /** Static command and shortcut registration values. */
-export const COMMAND_NAME = 'signalboard';
-export const COMMAND_INVOCATION = '/signalboard';
+export const COMMAND_NAME = 'agent-board';
+export const COMMAND_INVOCATION = '/agent-board';
+export const COMPATIBILITY_COMMAND_NAME = 'agentboard';
+export const COMPATIBILITY_COMMAND_INVOCATION = '/agentboard';
+export const LEGACY_COMMAND_NAME = 'signalboard';
+export const LEGACY_COMMAND_INVOCATION = '/signalboard';
 export const SHORTCUT = 'ctrl+shift+b';
 export const SHORTCUT_DISPLAY = 'Ctrl+Shift+B';
-export const SHORTCUT_DESCRIPTION = 'Open Pi Signal Board';
+export const SHORTCUT_DESCRIPTION = 'Open Agent Board';
 
 /** Static agent tool names. */
 export const UPDATE_TOOL_NAME = 'signal_board_update';

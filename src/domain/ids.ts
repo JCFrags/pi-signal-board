@@ -45,7 +45,7 @@ class CryptoUuidSource implements UuidSource {
 
 /**
  * Prefixed UUIDv4 generator with collision protection for one runtime.
- * Construct one instance per Signal Board runtime. Do not share it globally.
+ * Construct one instance per Agent Board runtime. Do not share it globally.
  */
 export class RuntimeIdGenerator implements IdGenerator {
   readonly #issued = new Set<string>();

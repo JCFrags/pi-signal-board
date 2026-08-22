@@ -174,7 +174,7 @@ describe('SB-029 shortcut registration boundary', () => {
     } as ExtensionContext;
     await expect(shortcut(failed).handler(context)).resolves.toBeUndefined();
     expect(lastNotice(failed)).toBe(
-      'Signal Board interactive UI failed (SB_UI_UNAVAILABLE). No state changed.',
+      'Agent Board interactive UI failed (SB_UI_UNAVAILABLE). No state changed.',
     );
     expect(lastNotice(failed)).not.toContain('SYNTHETIC_PRIVATE_SHORTCUT_COMPONENT');
     expect(failed.appendCalls).toHaveLength(0);
@@ -202,7 +202,7 @@ describe('SB-029 shortcut registration boundary', () => {
     harness.failNextShortcutRegistration(new Error('SYNTHETIC_PRIVATE_BINDING_OWNER'));
     register(harness);
     expect(harness.registrations.shortcuts).toHaveLength(0);
-    expect(harness.registrations.commands).toHaveLength(1);
+    expect(harness.registrations.commands).toHaveLength(3);
 
     await harness.dispatch('session_start');
     await harness.dispatch('session_tree');

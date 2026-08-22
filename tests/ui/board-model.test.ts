@@ -252,17 +252,17 @@ describe('SB-026 board view model', () => {
     ).toEqual({
       kind: 'unavailable',
       code: 'SB_CONFIG_DISABLED',
-      message: 'Pi Signal Board is disabled by configuration.',
+      message: 'Agent Board is disabled by configuration.',
     });
     expect(boardModelFailure('ui_unavailable')).toEqual({
       kind: 'unavailable',
       code: 'SB_UI_UNAVAILABLE',
-      message: 'Signal Board interactive UI is unavailable.',
+      message: 'Agent Board interactive UI is unavailable.',
     });
     expect(boardModelFailure('internal_error')).toEqual({
       kind: 'error',
       code: 'SB_INTERNAL',
-      message: 'Signal Board could not build a safe view.',
+      message: 'Agent Board could not build a safe view.',
     });
   });
 

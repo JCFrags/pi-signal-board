@@ -1,4 +1,4 @@
-/** Public error codes returned by Signal Board boundaries. */
+/** Public error codes returned by Agent Board boundaries. */
 export const SIGNAL_BOARD_ERROR_CODES = [
   'SB_NOT_INITIALIZED',
   'SB_UNSUPPORTED_HOST',
@@ -45,11 +45,11 @@ interface ErrorDefinition {
 /** Stable public text and retry guidance for each error code. */
 export const ERROR_DEFINITIONS = {
   SB_NOT_INITIALIZED: {
-    message: 'Signal Board is not initialized. Try again after session startup completes.',
+    message: 'Agent Board is not initialized. Try again after session startup completes.',
     retryable: true,
   },
   SB_UNSUPPORTED_HOST: {
-    message: 'This Node.js or Pi host version is not supported by Signal Board.',
+    message: 'This Node.js or Pi host version is not supported by Agent Board.',
     retryable: false,
   },
   SB_INVALID_ARGUMENT: {
@@ -74,11 +74,11 @@ export const ERROR_DEFINITIONS = {
     retryable: false,
   },
   SB_LIMIT_EXCEEDED: {
-    message: 'A Signal Board limit was reached. Reduce the request or try again later.',
+    message: 'A Agent Board limit was reached. Reduce the request or try again later.',
     retryable: true,
   },
   SB_PERSISTENCE_FAILED: {
-    message: 'Signal Board could not save the change. No success was recorded.',
+    message: 'Agent Board could not save the change. No success was recorded.',
     retryable: true,
   },
   SB_DELIVERY_FAILED: {
@@ -86,23 +86,23 @@ export const ERROR_DEFINITIONS = {
     retryable: true,
   },
   SB_UI_UNAVAILABLE: {
-    message: 'The required interactive Signal Board interface is unavailable in this mode.',
+    message: 'The required interactive Agent Board interface is unavailable in this mode.',
     retryable: true,
   },
   SB_CONFIG_INVALID: {
-    message: 'A Signal Board configuration document is invalid and was not applied.',
+    message: 'A Agent Board configuration document is invalid and was not applied.',
     retryable: false,
   },
   SB_CONFIG_DISABLED: {
-    message: 'Signal Board is disabled by the effective configuration.',
+    message: 'Agent Board is disabled by the effective configuration.',
     retryable: false,
   },
   SB_COMMAND_DISCOVERY_AMBIGUOUS: {
-    message: 'Signal Board could not identify its command invocation unambiguously.',
+    message: 'Agent Board could not identify its command invocation unambiguously.',
     retryable: true,
   },
   SB_INTERNAL: {
-    message: 'Signal Board encountered an unexpected internal error.',
+    message: 'Agent Board encountered an unexpected internal error.',
     retryable: true,
   },
 } as const satisfies Record<SignalBoardErrorCode, ErrorDefinition>;

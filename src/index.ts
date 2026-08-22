@@ -18,12 +18,19 @@ import { ANSWER_CUSTOM_TYPE, COMMAND_INVOCATION } from './constants.js';
 import { RuntimeIdGenerator } from './domain/ids.js';
 import type { CompatibilityResult } from './integration/compatibility.js';
 import { evaluateCurrentHostCompatibility } from './integration/compatibility.js';
+import type { AgentBoardActionRequest } from './integration/event-bus.js';
+import {
+  type AgentBoardEventBusActions,
+  type AgentBoardEventBusRegistration,
+  registerAgentBoardEventBus,
+} from './integration/event-bus.js';
 import {
   DEFAULT_REPLAY_ADAPTER,
   RuntimeLifecycle,
   type RuntimeLifecycleAdapters,
 } from './integration/lifecycle.js';
 import { createPiSessionStore } from './persistence/pi-session-store.js';
+import { projectRecommendationAnswer } from './questions/validation/index.js';
 import type { RuntimeLifecycleHooks, SignalBoardRuntime } from './runtime/types.js';
 import { TurnAcknowledgementRateCounter } from './services/acknowledgement-rate-counter.js';
 import { AcknowledgementService } from './services/acknowledgement-service.js';
@@ -99,11 +106,12 @@ export function createSignalBoardExtension(
     let shortcutRegistration: ShortcutRegistration = Object.freeze({
       availability: 'available',
     });
+    let eventBusRegistration: AgentBoardEventBusRegistration | undefined;
     let resolveEffectiveCommand = (runtime?: SignalBoardRuntime) => {
       const invocation =
         overrides.effectiveCommand?.(runtime as SignalBoardRuntime) ?? COMMAND_INVOCATION;
       return {
-        baseName: 'signalboard' as const,
+        baseName: 'agent-board' as const,
         invocationName: invocation.replace(/^\//u, ''),
         invocation,
         discovered: false,
@@ -121,7 +129,9 @@ export function createSignalBoardExtension(
       ...adapters.hooks,
       async evaluateExpiryLocked(runtime) {
         recordShortcutConflictOnce(runtime, shortcutRegistration, adapters.now);
-        constructRuntimeServices(runtime, pi, lifecycle, adapters);
+        constructRuntimeServices(runtime, pi, lifecycle, adapters, () =>
+          eventBusRegistration?.notifyCommittedChange(),
+        );
         await runtime.expiryService?.evaluateExpiryLocked(adapters.now());
         await adapters.hooks.evaluateExpiryLocked?.(runtime);
       },
@@ -162,7 +172,9 @@ export function createSignalBoardExtension(
         safeClearExpiryHandle(adapters.expiryTimers, handle);
       },
       async recoverDeliveryLocked(runtime) {
-        constructRuntimeServices(runtime, pi, lifecycle, adapters);
+        constructRuntimeServices(runtime, pi, lifecycle, adapters, () =>
+          eventBusRegistration?.notifyCommittedChange(),
+        );
         const result = await runtime.answerDeliveryService?.recoverLocked();
         if (result !== undefined && !result.ok) {
           runtime.diagnostics.record({
@@ -177,7 +189,9 @@ export function createSignalBoardExtension(
         await adapters.hooks.recoverDeliveryLocked?.(runtime);
       },
       async escalateConditionalQuestionsLocked(runtime) {
-        constructRuntimeServices(runtime, pi, lifecycle, adapters);
+        constructRuntimeServices(runtime, pi, lifecycle, adapters, () =>
+          eventBusRegistration?.notifyCommittedChange(),
+        );
         const result = await runtime.questionEscalationService?.escalateConditionalQuestionsLocked(
           safeAdapterTimestamp(adapters.now),
         );
@@ -229,12 +243,235 @@ export function createSignalBoardExtension(
       onFailure: (context) =>
         safeEmit(
           context,
-          'Signal Board command failed safely (SB_INTERNAL). No state changed.',
+          'Agent Board command failed safely (SB_INTERNAL). No state changed.',
           adapters.writePrint,
         ),
     });
 
     lifecycle.register(pi);
+    const eventBusActions: AgentBoardEventBusActions = {
+      now: () => adapters.now().toISOString(),
+      openUi: async () => {
+        const current = lifecycle.slot.current();
+        if (current === undefined)
+          return {
+            ok: false,
+            error: {
+              code: 'SB_NOT_INITIALIZED',
+              message: 'Agent Board is not initialized.',
+              retryable: true,
+            },
+          };
+        await handleSignalBoardOpen(current.context, commandDependencies, resolveEffectiveCommand);
+        return { ok: true };
+      },
+      answerQuestion: async (request) => {
+        const result = await lifecycle.runHealthy(async (runtime) => {
+          constructRuntimeServices(runtime, pi, lifecycle, adapters, () =>
+            eventBusRegistration?.notifyCommittedChange(),
+          );
+          const persistence = runtime.answerPersistenceService;
+          const delivery = runtime.answerDeliveryService;
+          const ids = runtime.ids;
+          if (persistence === undefined || delivery === undefined || ids === undefined)
+            return {
+              ok: false as const,
+              error: {
+                code: 'SB_NOT_INITIALIZED',
+                message: 'Agent Board is not initialized.',
+                retryable: true,
+              },
+            };
+          const saved = await persistence.answerQuestionLocked({
+            commandId: ids.command(),
+            questionId: request.questionId as never,
+            expectedRevision: request.expectedRevision,
+            source: request.source,
+            value: request.value,
+          });
+          if (!saved.ok) return { ok: false as const, error: saved.error };
+          const sent = await delivery.deliverLocked(saved.value.answer.id);
+          return sent.ok
+            ? { ok: true as const, answerId: saved.value.answer.id }
+            : { ok: false as const, error: sent.error };
+        });
+        return result.ok ? result.value : { ok: false, error: result.error };
+      },
+      providerAction: async (request) => {
+        const result = await lifecycle.runHealthy(async (runtime) => {
+          constructRuntimeServices(runtime, pi, lifecycle, adapters, () =>
+            eventBusRegistration?.notifyCommittedChange(),
+          );
+          const ids = runtime.ids;
+          if (ids === undefined)
+            return {
+              ok: false as const,
+              error: {
+                code: 'SB_NOT_INITIALIZED',
+                message: 'Agent Board is not initialized.',
+                retryable: true,
+              },
+            };
+          if (request.action === 'answer-question' || request.action === 'accept-recommendation') {
+            const question = runtime.state.questions.get(request.questionId as never);
+            const value =
+              request.action === 'accept-recommendation'
+                ? question === undefined
+                  ? undefined
+                  : projectRecommendationAnswer(question)
+                : request.value;
+            if (value === undefined)
+              return {
+                ok: false as const,
+                error: {
+                  code: 'SB_INVALID_ARGUMENT',
+                  message: 'A valid answer value is required.',
+                  retryable: false,
+                },
+              };
+            const saved = await runtime.answerPersistenceService?.answerQuestionLocked({
+              commandId: ids.command(),
+              questionId: request.questionId as never,
+              expectedRevision: request.expectedRevision,
+              source: request.action === 'accept-recommendation' ? 'recommendation' : 'manual',
+              value,
+            });
+            if (saved === undefined || !saved.ok)
+              return saved === undefined
+                ? {
+                    ok: false as const,
+                    error: {
+                      code: 'SB_NOT_INITIALIZED',
+                      message: 'Answer service is unavailable.',
+                      retryable: true,
+                    },
+                  }
+                : { ok: false as const, error: saved.error };
+            const sent = await runtime.answerDeliveryService?.deliverLocked(saved.value.answer.id);
+            if (sent === undefined || !sent.ok)
+              return sent === undefined
+                ? {
+                    ok: false as const,
+                    error: {
+                      code: 'SB_NOT_INITIALIZED',
+                      message: 'Delivery service is unavailable.',
+                      retryable: true,
+                    },
+                  }
+                : { ok: false as const, error: sent.error };
+            return { ok: true as const, value: { answerId: saved.value.answer.id } };
+          }
+          if (request.action === 'retry-delivery') {
+            const sent = await runtime.answerDeliveryService?.deliverLocked(
+              request.answerId as never,
+            );
+            return sent === undefined
+              ? {
+                  ok: false as const,
+                  error: {
+                    code: 'SB_NOT_INITIALIZED',
+                    message: 'Delivery service is unavailable.',
+                    retryable: true,
+                  },
+                }
+              : sent.ok
+                ? { ok: true as const, value: { answerId: sent.value.answer.id } }
+                : { ok: false as const, error: sent.error };
+          }
+          if (request.action === 'dismiss-question') {
+            const dismissed = await runtime.questionService?.dismissQuestionLocked({
+              commandId: ids.command(),
+              id: request.questionId,
+              expectedRevision: request.expectedRevision,
+              dismissedAt: adapters.now().toISOString(),
+              reason: 'user_dismissed',
+              source: 'board',
+            });
+            return dismissed === undefined
+              ? {
+                  ok: false as const,
+                  error: {
+                    code: 'SB_NOT_INITIALIZED',
+                    message: 'Question service is unavailable.',
+                    retryable: true,
+                  },
+                }
+              : dismissed.ok
+                ? { ok: true as const }
+                : { ok: false as const, error: dismissed.error };
+          }
+          if (request.action === 'archive-update') {
+            const archived = await runtime.updateService?.archiveFromUiLocked({
+              commandId: ids.command(),
+              id: request.updateId,
+              expectedRevision: request.expectedRevision,
+              archivedAt: adapters.now().toISOString(),
+              source: 'board',
+            });
+            return archived === undefined
+              ? {
+                  ok: false as const,
+                  error: {
+                    code: 'SB_NOT_INITIALIZED',
+                    message: 'Update service is unavailable.',
+                    retryable: true,
+                  },
+                }
+              : archived.ok
+                ? { ok: true as const }
+                : { ok: false as const, error: archived.error };
+          }
+          const ackRequest = request as Extract<
+            AgentBoardActionRequest,
+            { action: 'acknowledge-answer' }
+          >;
+          const acknowledged = await runtime.acknowledgementService?.acknowledgeLocked({
+            commandId: `tool:side-panel:${randomUUID()}` as never,
+            answerId: ackRequest.answerId as never,
+            outcome: ackRequest.outcome,
+            summary: ackRequest.summary,
+            ...(ackRequest.resultingUpdateIds === undefined
+              ? {}
+              : { resultingUpdateIds: ackRequest.resultingUpdateIds as never }),
+            ...(ackRequest.attachments === undefined
+              ? {}
+              : { attachments: ackRequest.attachments }),
+          });
+          return acknowledged === undefined
+            ? {
+                ok: false as const,
+                error: {
+                  code: 'SB_NOT_INITIALIZED',
+                  message: 'Acknowledgement service is unavailable.',
+                  retryable: true,
+                },
+              }
+            : acknowledged.ok
+              ? {
+                  ok: true as const,
+                  value: {
+                    answerId: acknowledged.value.acknowledgement.answerId,
+                    outcome: acknowledged.value.acknowledgement.outcome,
+                  },
+                }
+              : { ok: false as const, error: acknowledged.error };
+        });
+        return result.ok ? result.value : { ok: false, error: result.error };
+      },
+    };
+    eventBusRegistration = registerAgentBoardEventBus(
+      pi.events,
+      () => lifecycle.slot.current(),
+      eventBusActions,
+    );
+    // /reload can evaluate this extension after the active session_start event.
+    // Start the same-process provider contract now as well as on future sessions.
+    eventBusRegistration.start();
+    pi.on('session_start', () => eventBusRegistration?.start());
+    pi.on('session_shutdown', () => {
+      eventBusRegistration?.shutdown();
+      eventBusRegistration = undefined;
+    });
   };
 }
 
@@ -271,6 +508,7 @@ function constructRuntimeServices(
   pi: ExtensionAPI,
   lifecycle: RuntimeLifecycle,
   adapters: SignalBoardExtensionAdapters,
+  notifyCommittedChange: () => void,
 ): void {
   if (runtime.updateService !== undefined) return;
   runtime.ui ??= createSignalBoardUiAdapter(runtime.context, runtime.diagnostics);
@@ -287,7 +525,7 @@ function constructRuntimeServices(
   const requireCurrent = (): SignalBoardRuntime => {
     const current = lifecycle.slot.current();
     if (current?.generation !== generation || current.disposed || current.status !== 'healthy') {
-      throw new Error('Stale Signal Board runtime.');
+      throw new Error('Stale Agent Board runtime.');
     }
     return current;
   };
@@ -303,6 +541,7 @@ function constructRuntimeServices(
   };
   const afterMutationLocked = async (): Promise<void> => {
     await lifecycle.mutationBoundaryLocked(requireCurrent());
+    notifyCommittedChange();
   };
   runtime.boardViewCheckpointService = new BoardViewCheckpointService({
     queue: lifecycle.queue,
@@ -312,6 +551,7 @@ function constructRuntimeServices(
     },
     append: (event) => sessionStore.append(event),
     refresh,
+    afterMutation: notifyCommittedChange,
     clock: { now: adapters.now },
     ids,
   });
@@ -323,6 +563,7 @@ function constructRuntimeServices(
     },
     append: (event) => sessionStore.append(event),
     refresh,
+    afterMutation: notifyCommittedChange,
     clock: { now: adapters.now },
     ids,
     timers: adapters.expiryTimers,
@@ -420,6 +661,7 @@ function constructRuntimeServices(
     },
     append: (event) => sessionStore.append(event),
     refresh,
+    afterMutation: notifyCommittedChange,
     notify: (message, severity) => {
       const current = requireCurrent();
       if (current.context.hasUI) current.context.ui.notify(message, severity);
@@ -476,7 +718,7 @@ function safeAdapterTimestamp(now: () => Date): string {
 function registerStaticRenderers(pi: ExtensionAPI): void {
   pi.registerMessageRenderer(
     ANSWER_CUSTOM_TYPE,
-    (_message, _options, theme) => new Text(theme.fg('muted', '[Signal Board answer]'), 0, 0),
+    (_message, _options, theme) => new Text(theme.fg('muted', '[Agent Board answer]'), 0, 0),
   );
 }
 
@@ -488,7 +730,9 @@ export type { FixedConfigReader };
 export * from './commands/answer-actions.js';
 export * from './commands/command-parser.js';
 export * from './commands/signalboard-command.js';
+export * from './integration/event-bus.js';
 export { RuntimeLifecycle } from './integration/lifecycle.js';
+export * from './integration/summary-api.js';
 export { RuntimeSlot } from './runtime/slot.js';
 export type * from './runtime/types.js';
 export * from './services/acknowledgement-service.js';

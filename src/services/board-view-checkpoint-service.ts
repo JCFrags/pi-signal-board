@@ -25,6 +25,7 @@ export interface BoardViewCheckpointServiceDependencies {
   readonly swapState: (state: BoardState) => void;
   readonly append: (event: BoardViewedEvent) => Promise<Result<void>>;
   readonly refresh: (state: BoardState) => void | Promise<void>;
+  readonly afterMutation?: () => void | Promise<void>;
   readonly clock: Clock;
   readonly ids: Pick<IdGenerator, 'command' | 'event'>;
 }
@@ -105,6 +106,7 @@ export class BoardViewCheckpointService {
     if (!appended.ok) return appended;
 
     this.#dependencies.swapState(reduced.state);
+    await this.#dependencies.afterMutation?.();
     this.#reservations.delete(command.cutoffAt);
     try {
       await this.#dependencies.refresh(reduced.state);
@@ -119,7 +121,7 @@ export class BoardViewCheckpointService {
 function internalError() {
   return Object.freeze({
     code: 'SB_INTERNAL' as const,
-    message: 'Signal Board encountered an unexpected internal error.',
+    message: 'Agent Board encountered an unexpected internal error.',
     retryable: true,
   });
 }

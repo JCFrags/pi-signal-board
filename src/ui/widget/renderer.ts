@@ -88,7 +88,7 @@ function renderItem(label: string, displayId: string, title: string, width: numb
 }
 
 function renderHint(effectiveCommand: string, width: number): string {
-  const command = safeText(effectiveCommand, '/signalboard');
+  const command = safeText(effectiveCommand, '/agentboard');
   return boundLine(`Open ${command}`, width);
 }
 

@@ -1,6 +1,6 @@
-# Pi Signal Board
+# Agent Board
 
-Pi Signal Board keeps significant coding-agent updates visible outside the chat transcript and provides a structured asynchronous question inbox.
+Agent Board keeps significant coding-agent updates visible outside the chat transcript and provides a structured asynchronous question inbox.
 
 ## Requirements
 
@@ -28,16 +28,21 @@ pi -e npm:pi-signal-board
 
 ## Use
 
-- Open the board with `/signalboard` or `Ctrl+Shift+B`.
-- Run `/signalboard summary` for a plain text summary.
-- Run `/signalboard doctor` for redacted compatibility and replay diagnostics.
-- Agents receive three tools: `signal_board_update`, `signal_board_question`, and `signal_board_ack`.
+- Open the board with `/agentboard` or `Ctrl+Shift+B`.
+- Run `/agentboard summary` for a plain text summary.
+- Run `/agentboard doctor` for redacted compatibility and replay diagnostics.
+- `/signalboard` remains a compatibility alias.
+- Agents receive three Agent Board tools: `signal_board_update`, `signal_board_question`, and `signal_board_ack`.
 
 Answers are delivered at least once. The agent deduplicates by immutable answer ID and acknowledges whether the answer was applied.
 
+## Questions
+
+`ask_user_question` is synchronous and blocking. It waits for the user's answer in the current interaction. `signal_board_question` creates a durable asynchronous Agent Board question, so independent work can continue. Both tools remain because their behavior differs.
+
 ## Ownership
 
-Signal Board owns only its board events and asynchronous question inbox. The orchestrator remains the task authority. A todo product remains a local checklist. Signal Board does not replace either one.
+Agent Board owns only its board events and asynchronous question inbox. The orchestrator remains the task authority. A todo product remains a local checklist. Agent Board does not replace either one.
 
 ## Data and privacy
 
@@ -49,7 +54,7 @@ Global configuration: `~/.pi/agent/pi-signal-board.json`.
 
 Trusted project configuration: `<project>/.pi/pi-signal-board.json` (using Pi's configured project directory name). Project configuration is not read unless Pi reports the project trusted.
 
-See the package documentation for the complete version-1 schema and defaults.
+See the package documentation for the complete version-1 schema and defaults. Separate integrations can use the exported read-only `getAgentBoardSummary` API without coupling to Herdr or another orchestrator.
 
 ## Update and remove
 
@@ -60,4 +65,4 @@ pi remove npm:pi-signal-board
 
 ## Security
 
-Pi extensions run with the user's process permissions. Review package source before installing. Signal Board intentionally performs no shell execution, process spawning, network requests, arbitrary project reads, or automatic attachment activation. See `SECURITY.md` for reporting.
+Pi extensions run with the user's process permissions. Review package source before installing. Agent Board intentionally performs no shell execution, process spawning, network requests, arbitrary project reads, or automatic attachment activation. See `SECURITY.md` for reporting.

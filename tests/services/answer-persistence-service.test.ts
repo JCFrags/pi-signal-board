@@ -435,7 +435,7 @@ describe('SB-036 answer persistence writer boundary', () => {
       ok: false,
       error: {
         code: 'SB_PERSISTENCE_FAILED',
-        message: 'Signal Board could not save the change. No success was recorded.',
+        message: 'Agent Board could not save the change. No success was recorded.',
       },
     });
     expect(target.state().answers.size).toBe(0);

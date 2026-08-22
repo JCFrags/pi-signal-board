@@ -258,7 +258,7 @@ function allocateEventId(ids: Pick<IdGenerator, 'event'>, state: BoardState): Ev
 function internalError() {
   return Object.freeze({
     code: 'SB_INTERNAL' as const,
-    message: 'Signal Board encountered an unexpected internal error.',
+    message: 'Agent Board encountered an unexpected internal error.',
     retryable: true,
   });
 }
