@@ -151,7 +151,7 @@ async function failureDetails(
   id: string,
   input: QuestionToolInput,
 ): Promise<{ details: QuestionToolDetails; text: string }> {
-  await expect(test.tool.execute(id, input)).rejects.toThrow(/^Agent Board tool failed \(SB_/u);
+  await expect(test.tool.execute(id, input)).rejects.toThrow(/^Signals tool failed \(SB_/u);
   const [patch] = await test.harness.dispatch('tool_result', {
     type: 'tool_result',
     toolCallId: id,

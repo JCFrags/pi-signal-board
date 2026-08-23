@@ -165,7 +165,7 @@ const input = (outcome: AckToolInput['outcome'] = 'applied'): AckToolInput => ({
 });
 
 async function failure(test: ReturnType<typeof setup>, id: string, value: AckToolInput) {
-  await expect(test.tool.execute(id, value)).rejects.toThrow(/^Agent Board tool failed \(SB_/u);
+  await expect(test.tool.execute(id, value)).rejects.toThrow(/^Signals tool failed \(SB_/u);
   const [patch] = await test.harness.dispatch('tool_result', {
     type: 'tool_result',
     toolCallId: id,

@@ -167,7 +167,7 @@ export type UpdateToolDetails = UpdateToolSuccess | UpdateToolFailure;
 export const UPDATE_TOOL_DESCRIPTION =
   'create, revise, or archive a durable significant board update.';
 export const UPDATE_TOOL_PROMPT_SNIPPET =
-  'Post or revise a durable Agent Board milestone, finding, warning, blocker, failure, or completion.';
+  'Post or revise a durable Signals milestone, finding, warning, blocker, failure, or completion.';
 export const UPDATE_TOOL_PROMPT_GUIDELINES = [
   'Use signal_board_update only for durable milestones, material findings, warnings, blockers, failures, and completion.',
   'Use the same signal_board_update key to revise one workstream instead of posting routine activity.',
@@ -211,7 +211,7 @@ export function registerUpdateTool(
 ): void {
   pi.registerTool({
     name: UPDATE_TOOL_NAME,
-    label: 'Agent Board Update',
+    label: 'Signals Update',
     description: UPDATE_TOOL_DESCRIPTION,
     promptSnippet: UPDATE_TOOL_PROMPT_SNIPPET,
     promptGuidelines: UPDATE_TOOL_PROMPT_GUIDELINES,
@@ -259,7 +259,7 @@ export function registerUpdateTool(
       const details = result.details as UpdateToolDetails | undefined;
       if (!details || typeof details !== 'object' || !('ok' in details)) {
         component.setText(
-          theme.fg('error', 'ERROR SB_INTERNAL Agent Board result details are unavailable.'),
+          theme.fg('error', 'ERROR SB_INTERNAL Signals result details are unavailable.'),
         );
       } else if (!details.ok) {
         component.setText(
@@ -304,7 +304,7 @@ export function patchPendingToolFailure(event: ToolResultEvent, pending: Pending
 
 function throwFailure(id: string, error: SignalBoardError, pending: PendingToolFailures): never {
   pending.set(id, Object.freeze({ ok: false, error }));
-  throw new Error(`Agent Board tool failed (${error.code}).`);
+  throw new Error(`Signals tool failed (${error.code}).`);
 }
 function publicError(
   code: 'SB_NOT_INITIALIZED' | 'SB_UNSUPPORTED_HOST' | 'SB_CONFIG_DISABLED' | 'SB_INTERNAL',

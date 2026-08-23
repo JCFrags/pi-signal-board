@@ -1,8 +1,8 @@
-# Agent Board event bus
+# Signals event bus
 
-Agent Board exposes a small same-process contract for independent Pi extensions. It has no Herdr or orchestrator dependency.
+Signals exposes a small same-process contract for independent Pi extensions. It has no Herdr or orchestrator dependency. `/signals` is the primary standalone command. `/signalboard` is the compatibility alias. The `pi-agent-board:*` event names and exported `AgentBoard*` TypeScript names remain compatibility namespaces for existing consumers.
 
-The Pi 0.84.2 event API is `pi.events.on(channel, handler)` and `pi.events.emit(channel, data)`. `on` returns an unsubscribe function. It does not provide reply callbacks. A request therefore includes a `requestId`, and Agent Board emits the response on a separate event.
+The Pi 0.84.2 event API is `pi.events.on(channel, handler)` and `pi.events.emit(channel, data)`. `on` returns an unsubscribe function. It does not provide reply callbacks. A request therefore includes a `requestId`, and Signals emits the response on a separate event.
 
 ## Events
 
@@ -14,7 +14,7 @@ Request payload:
 { schemaVersion: 1, requestId: string }
 ```
 
-Agent Board ignores requests before session startup and after shutdown.
+Signals ignores requests before session startup and after shutdown.
 
 `pi-agent-board:summary-v1`
 
@@ -26,8 +26,8 @@ Response payload:
   requestId: string,
   snapshot: {
     schemaVersion: 1,
-    productName: "Agent Board",
-    preferredCommand: "/agentboard",
+    productName: "Signals",
+    preferredCommand: "/signals",
     health: "healthy" | "degraded" | "disabled" | "unsupported",
     pendingAsyncQuestionCount: number,
     pendingQuestions: Array<{
@@ -63,7 +63,7 @@ Change payload:
 { schemaVersion: 1, snapshot: /* the same snapshot shape */ }
 ```
 
-Agent Board emits this event only after a durable state mutation has committed and only when the bounded snapshot changed. Listeners are removed on `session_shutdown`, including extension reload.
+Signals emits this event only after a durable state mutation has committed and only when the bounded snapshot changed. Listeners are removed on `session_shutdown`, including extension reload.
 
 ## Provider-owned actions v1
 
@@ -84,6 +84,6 @@ Agent Board emits this event only after a durable state mutation has committed a
   error: { code: string, message: string, retryable: boolean } }
 ```
 
-`open-ui` invokes the existing Agent Board UI handler in the current Pi session. `answer-question` requires one exact asynchronous question and its current revision. It cannot answer synchronous `ask_user_question` or orchestrator blocking questions. Invalid, stale, missing, or unavailable requests return errors without success. Listeners are removed on shutdown and reload. Responses and summary changes are emitted only after committed state; UI opening has no state mutation.
+`open-ui` invokes the existing Signals UI handler in the current Pi session. `answer-question` requires one exact asynchronous question and its current revision. It cannot answer synchronous `ask_user_question` or orchestrator blocking questions. Invalid, stale, missing, or unavailable requests return errors without success. Listeners are removed on shutdown and reload. Responses and summary changes are emitted only after committed state; UI opening has no state mutation.
 
-`ask_user_question` remains synchronous and blocking. Agent Board questions remain durable and asynchronous. This event bus does not change either behavior.
+`ask_user_question` remains synchronous and blocking. Signals questions remain durable and asynchronous. This event bus does not change either behavior.

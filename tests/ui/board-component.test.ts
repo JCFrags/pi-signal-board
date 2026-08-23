@@ -203,11 +203,11 @@ describe('SB-027 board component rendering', () => {
   it('renders the exact resize warning below 50 columns with width-safe wrapping', () => {
     const lines = component().board.render(49);
     expect(lines).toEqual([
-      'Agent Board requires at least 50 columns. Resize',
-      'the terminal or press Esc.',
+      'Signals requires at least 50 columns. Resize the',
+      'terminal or press Esc.',
     ]);
     expect(lines.join(' ')).toBe(
-      'Agent Board requires at least 50 columns. Resize the terminal or press Esc.',
+      'Signals requires at least 50 columns. Resize the terminal or press Esc.',
     );
     expectWidthSafe(lines, 49);
   });
@@ -218,7 +218,7 @@ describe('SB-027 board component rendering', () => {
 
     empty.board.handleInput('?');
     const help = plain(empty.board.render(80));
-    expect(help).toContain('Agent Board keys');
+    expect(help).toContain('Signals keys');
     expect(help).toContain('Decisions and History: read-only');
 
     const unavailableModel = {
@@ -231,7 +231,7 @@ describe('SB-027 board component rendering', () => {
       ...model({}),
       availability: boardModelFailure('internal_error'),
     } as BoardViewModel;
-    expect(plain(component(errorModel).board.render(80))).toContain('AGENT BOARD ERROR');
+    expect(plain(component(errorModel).board.render(80))).toContain('SIGNALS ERROR');
 
     const visible: VisibleChangeRecord = {
       eventId: 'evt_75000000-0000-4000-8000-000000000004',
@@ -354,9 +354,9 @@ describe('SB-027 board component input boundary', () => {
     board.handleInput('\r');
     expect(plain(board.render(80))).toContain('Why:');
     board.handleInput('?');
-    expect(plain(board.render(80))).toContain('Agent Board keys');
+    expect(plain(board.render(80))).toContain('Signals keys');
     board.handleInput('\u001b');
-    expect(plain(board.render(80))).not.toContain('Agent Board keys');
+    expect(plain(board.render(80))).not.toContain('Signals keys');
     expect(actions).toEqual([]);
     board.handleInput('\u001b');
     expect(actions).toEqual([{ type: 'close', tab: 'inbox' }]);
@@ -534,10 +534,10 @@ describe('SB-027 board component input boundary', () => {
       bold: (text: string) => text,
     } as unknown as Theme;
     const { board, host } = component(model(), mutableTheme);
-    expect(plain(board.render(80))).toContain('OLD:AGENT BOARD');
+    expect(plain(board.render(80))).toContain('OLD:SIGNALS');
     prefix = 'NEW:';
     board.invalidate();
-    expect(plain(board.render(80))).toContain('NEW:AGENT BOARD');
+    expect(plain(board.render(80))).toContain('NEW:SIGNALS');
     expect(plain(board.render(80))).not.toContain('OLD:');
     expect(host.requestRender).toHaveBeenCalledOnce();
   });

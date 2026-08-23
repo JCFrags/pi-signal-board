@@ -121,7 +121,7 @@ export class BoardViewCheckpointService {
 function internalError() {
   return Object.freeze({
     code: 'SB_INTERNAL' as const,
-    message: 'Agent Board encountered an unexpected internal error.',
+    message: 'Signals encountered an unexpected internal error.',
     retryable: true,
   });
 }

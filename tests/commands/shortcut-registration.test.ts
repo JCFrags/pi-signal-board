@@ -132,7 +132,7 @@ describe('SB-029 shortcut registration boundary', () => {
       await harness.dispatch('session_start');
       harness.uiCalls.length = 0;
       await shortcut(harness).handler(harness.context());
-      expect(lastNotice(harness)).toContain('Signal: 0 actionable questions');
+      expect(lastNotice(harness)).toContain('Signals: 0 actionable questions');
       expect(harness.uiCalls.some((call) => call.surface === 'custom')).toBe(false);
       expect(harness.appendCalls).toHaveLength(0);
     }
@@ -148,7 +148,7 @@ describe('SB-029 shortcut registration boundary', () => {
       ui: { ...base.ui, custom: undefined },
     } as unknown as ExtensionContext;
     await shortcut(harness).handler(context);
-    expect(lastNotice(harness)).toContain('Signal: 0 actionable questions');
+    expect(lastNotice(harness)).toContain('Signals: 0 actionable questions');
     expect(harness.appendCalls).toHaveLength(0);
   });
 
@@ -174,7 +174,7 @@ describe('SB-029 shortcut registration boundary', () => {
     } as ExtensionContext;
     await expect(shortcut(failed).handler(context)).resolves.toBeUndefined();
     expect(lastNotice(failed)).toBe(
-      'Agent Board interactive UI failed (SB_UI_UNAVAILABLE). No state changed.',
+      'Signals interactive UI failed (SB_UI_UNAVAILABLE). No state changed.',
     );
     expect(lastNotice(failed)).not.toContain('SYNTHETIC_PRIVATE_SHORTCUT_COMPONENT');
     expect(failed.appendCalls).toHaveLength(0);
@@ -202,7 +202,7 @@ describe('SB-029 shortcut registration boundary', () => {
     harness.failNextShortcutRegistration(new Error('SYNTHETIC_PRIVATE_BINDING_OWNER'));
     register(harness);
     expect(harness.registrations.shortcuts).toHaveLength(0);
-    expect(harness.registrations.commands).toHaveLength(3);
+    expect(harness.registrations.commands).toHaveLength(2);
 
     await harness.dispatch('session_start');
     await harness.dispatch('session_tree');

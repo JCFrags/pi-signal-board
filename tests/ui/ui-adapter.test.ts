@@ -55,7 +55,7 @@ function refresh(
     config: effectiveConfig,
     currentTime: time(59),
     completedWindowCutoff: time(0),
-    effectiveCommand: '/agentboard',
+    effectiveCommand: '/signalboard',
     ...overrides,
   };
 }
@@ -74,7 +74,7 @@ function renderInstalledWidget(harness: FakePiHarness, width: number): string[] 
   return (content as () => Component)().render(width);
 }
 
-describe('Agent Board UI adapter', () => {
+describe('Signals UI adapter', () => {
   it('sets exact actionable, active, and unread no-color status counts', () => {
     const harness = new FakePiHarness();
     const diagnostics = createDiagnostics();
@@ -98,7 +98,7 @@ describe('Agent Board UI adapter', () => {
       ),
     );
 
-    expect(lastSurface(harness, 'setStatus')).toEqual(['pi-signal-board', 'Signal: 1Q 1U 1 new']);
+    expect(lastSurface(harness, 'setStatus')).toEqual(['pi-signal-board', 'Signals: 1Q 1U 1 new']);
     expect(renderInstalledWidget(harness, 80).join('\n')).toContain('[BLOCKED] Q-1');
     expect(renderInstalledWidget(harness, 80).join('\n')).toContain('[WORKING] U-1');
     expect(renderInstalledWidget(harness, 80).join('\n')).toContain('[DONE] U-2');
@@ -120,7 +120,7 @@ describe('Agent Board UI adapter', () => {
     expect(lastSurface(harness, 'setStatus')).toEqual(['pi-signal-board', undefined]);
 
     adapter.refresh(refresh(widgetState(), config({ statusHideWhenClear: false })));
-    expect(lastSurface(harness, 'setStatus')).toEqual(['pi-signal-board', 'Signal: clear']);
+    expect(lastSurface(harness, 'setStatus')).toEqual(['pi-signal-board', 'Signals: clear']);
   });
 
   it.each([
@@ -137,7 +137,7 @@ describe('Agent Board UI adapter', () => {
       ),
     );
     expect(typeof lastSurface(harness, 'setWidget')?.[1] === 'function').toBe(widget);
-    expect(lastSurface(harness, 'setStatus')?.[1]).toBe(status ? 'Signal: 0Q 1U' : undefined);
+    expect(lastSurface(harness, 'setStatus')?.[1]).toBe(status ? 'Signals: 0Q 1U' : undefined);
   });
 
   it('uses the exact completion cutoff and preserves selector rank at all required widths', () => {
@@ -173,7 +173,7 @@ describe('Agent Board UI adapter', () => {
         adapter.refresh(refresh(widgetState({ updates: [widgetUpdate(1, 'working', 1)] }))),
       ).not.toThrow();
       if (mode === 'tui' || mode === 'rpc') {
-        expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signal: 0Q 1U');
+        expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signals: 0Q 1U');
       } else {
         expect(harness.uiCalls).toEqual([]);
       }
@@ -192,7 +192,7 @@ describe('Agent Board UI adapter', () => {
     expect(() =>
       missingAdapter.refresh(refresh(widgetState({ updates: [widgetUpdate(1, 'working', 1)] }))),
     ).not.toThrow();
-    expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signal: 0Q 1U');
+    expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signals: 0Q 1U');
 
     const missingStatus = {
       ...base,
@@ -213,7 +213,7 @@ describe('Agent Board UI adapter', () => {
         widgetState({ updates: [widgetUpdate(2, 'working', 2, { title: 'PRIVATE board title' })] }),
       ),
     );
-    expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signal: 0Q 1U');
+    expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signals: 0Q 1U');
     expect(() =>
       adapter.refresh(refresh(widgetState({ updates: [widgetUpdate(3, 'working', 3)] }))),
     ).not.toThrow();
@@ -223,7 +223,7 @@ describe('Agent Board UI adapter', () => {
     adapter.refresh(refresh(widgetState({ updates: [widgetUpdate(4, 'working', 4)] })));
     expect(typeof lastSurface(harness, 'setWidget')?.[1]).toBe('function');
     adapter.refresh(refresh(widgetState({ updates: [widgetUpdate(5, 'working', 5)] })));
-    expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signal: 0Q 1U');
+    expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signals: 0Q 1U');
 
     const snapshot = diagnostics.snapshot();
     expect(snapshot.counts.SB_UI_UNAVAILABLE).toBe(4);
@@ -245,7 +245,7 @@ describe('Agent Board UI adapter', () => {
     const active = refresh(widgetState({ updates: [widgetUpdate(1, 'working', 1)] }));
     adapter.refresh(active);
     expect(typeof lastSurface(harness, 'setWidget')?.[1]).toBe('function');
-    expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signal: 0Q 1U');
+    expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signals: 0Q 1U');
 
     hasUi = false;
     adapter.refresh(active);
@@ -276,7 +276,7 @@ describe('Agent Board UI adapter', () => {
     expect(surfaceCalls(harness, 'setStatus')).toHaveLength(statusCallsBeforeClear + 1);
     adapter.refresh(active);
     expect(typeof lastSurface(harness, 'setWidget')?.[1]).toBe('function');
-    expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signal: 0Q 1U');
+    expect(lastSurface(harness, 'setStatus')?.[1]).toBe('Signals: 0Q 1U');
   });
 
   it('clears disabled state and makes direct disposal idempotent', () => {

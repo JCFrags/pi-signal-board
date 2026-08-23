@@ -1,6 +1,6 @@
 /** Stable package identifier and user-facing product name. */
 export const PRODUCT_ID = 'pi-signal-board';
-export const PRODUCT_NAME = 'Agent Board';
+export const PRODUCT_NAME = 'Signals';
 export const PRODUCT_VERSION = '0.1.0';
 
 /** Version ranges enforced by host compatibility checks. */
@@ -19,15 +19,16 @@ export const WIDGET_ID = PRODUCT_ID;
 export const STATUS_ID = PRODUCT_ID;
 
 /** Static command and shortcut registration values. */
-export const COMMAND_NAME = 'agent-board';
-export const COMMAND_INVOCATION = '/agent-board';
-export const COMPATIBILITY_COMMAND_NAME = 'agentboard';
-export const COMPATIBILITY_COMMAND_INVOCATION = '/agentboard';
-export const LEGACY_COMMAND_NAME = 'signalboard';
-export const LEGACY_COMMAND_INVOCATION = '/signalboard';
+export const COMMAND_NAME = 'signals';
+export const COMMAND_INVOCATION = '/signals';
+export const COMPATIBILITY_COMMAND_NAME = 'signalboard';
+export const COMPATIBILITY_COMMAND_INVOCATION = '/signalboard';
+/** Kept as source compatibility constants. The legacy alias is /signalboard. */
+export const LEGACY_COMMAND_NAME = COMPATIBILITY_COMMAND_NAME;
+export const LEGACY_COMMAND_INVOCATION = COMPATIBILITY_COMMAND_INVOCATION;
 export const SHORTCUT = 'ctrl+shift+b';
 export const SHORTCUT_DISPLAY = 'Ctrl+Shift+B';
-export const SHORTCUT_DESCRIPTION = 'Open Agent Board';
+export const SHORTCUT_DESCRIPTION = 'Open Signals';
 
 /** Static agent tool names. */
 export const UPDATE_TOOL_NAME = 'signal_board_update';

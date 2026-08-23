@@ -16,8 +16,7 @@ const WIDE_WIDTH = 100;
 const MAX_VISIBLE_ROWS = 12;
 const MAX_DETAIL_LINES = 14;
 const SAFE_TEXT_LIMIT = 10_000;
-const RESIZE_MESSAGE =
-  'Agent Board requires at least 50 columns. Resize the terminal or press Esc.';
+const RESIZE_MESSAGE = 'Signals requires at least 50 columns. Resize the terminal or press Esc.';
 
 export interface BoardRenderState {
   readonly width: number;
@@ -51,9 +50,7 @@ function renderNarrow(state: BoardRenderState, width: number): string[] {
   const lines = [
     state.theme.fg(
       'accent',
-      state.theme.bold(
-        `AGENT BOARD · ${tabName(state.activeTab)} ${tab.visibleCount}/${tab.count}`,
-      ),
+      state.theme.bold(`SIGNALS · ${tabName(state.activeTab)} ${tab.visibleCount}/${tab.count}`),
     ),
     ...catchUpLines(state, width),
     tabsLine(state, width),
@@ -108,7 +105,7 @@ function renderWide(state: BoardRenderState, width: number): string[] {
   }
 
   return [
-    state.theme.fg('accent', state.theme.bold('AGENT BOARD')),
+    state.theme.fg('accent', state.theme.bold('SIGNALS')),
     ...catchUpLines(state, width),
     tabsLine(state, width),
     separator(width),
@@ -122,7 +119,7 @@ function renderWide(state: BoardRenderState, width: number): string[] {
 function renderUnavailable(state: BoardRenderState, width: number): string[] {
   const availability = state.model.availability;
   if (availability.kind === 'ready') return [];
-  const heading = availability.kind === 'error' ? 'AGENT BOARD ERROR' : 'AGENT BOARD UNAVAILABLE';
+  const heading = availability.kind === 'error' ? 'SIGNALS ERROR' : 'SIGNALS UNAVAILABLE';
   const color = availability.kind === 'error' ? 'error' : 'warning';
   return [
     state.theme.fg(color, state.theme.bold(heading)),
@@ -136,7 +133,7 @@ function renderUnavailable(state: BoardRenderState, width: number): string[] {
 
 function renderHelp(state: BoardRenderState, width: number): string[] {
   return [
-    state.theme.fg('accent', state.theme.bold('Agent Board keys')),
+    state.theme.fg('accent', state.theme.bold('Signals keys')),
     separator(width),
     ...wrap('Global: Tab/Shift+Tab view · ↑↓/jk move · Enter details · Esc close', width),
     ...wrap('Inbox: A answer · R recommendation · X dismiss · Y retry delivery', width),
@@ -144,7 +141,7 @@ function renderHelp(state: BoardRenderState, width: number): string[] {
     ...wrap('Decisions and History: read-only', width),
     ...wrap('Other: ? help', width),
     '',
-    ...wrap('Commands: /agent-board [inbox|updates|decisions|history|summary|doctor]', width),
+    ...wrap('Commands: /signals [inbox|updates|decisions|history|summary|doctor]', width),
     separator(width),
     '? or Esc return to board',
   ];

@@ -163,17 +163,21 @@ describe('M0 registration and doctor shell', () => {
     expect(harness.uiCalls.some((call) => call.surface === 'custom')).toBe(false);
   });
 
-  it('registers signalboard once and does not add registrations during repeated starts', async () => {
+  it('registers the primary command and compatibility alias once across repeated starts', async () => {
     const harness = new FakePiHarness();
     register(harness);
 
     await harness.dispatch('session_start');
     await harness.dispatch('session_start', { type: 'session_start', reason: 'reload' });
 
-    expect(harness.registrations.commands.map((entry) => entry.name)).toEqual([
-      'agent-board',
-      'agentboard',
-      'signalboard',
+    expect(
+      harness.registrations.commands.map((entry) => [
+        entry.name,
+        (entry.options as { description: string }).description,
+      ]),
+    ).toEqual([
+      ['signals', 'Open Signals or show its summary and diagnostics.'],
+      ['signalboard', 'Open Signals (compatibility alias).'],
     ]);
     expect(harness.registrationCount('tools')).toBe(3);
     expect(harness.registrationCount('shortcuts')).toBe(1);
@@ -220,11 +224,11 @@ describe('M0 registration and doctor shell', () => {
     await harness.dispatch('session_start');
 
     for (const args of ['', 'summary']) {
-      expect(await runCommand(harness, args)).toContain('Signal: 0 actionable questions');
+      expect(await runCommand(harness, args)).toContain('Signals: 0 actionable questions');
     }
     for (const args of ['doctor extra', 'unknown']) {
       expect(await runCommand(harness, args)).toContain(
-        'Usage: /agent-board [inbox|updates|decisions|history|summary|doctor]',
+        'Usage: /signals [inbox|updates|decisions|history|summary|doctor]',
       );
     }
     expect(harness.appendCalls).toHaveLength(0);

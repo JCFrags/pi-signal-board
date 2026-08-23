@@ -1,6 +1,6 @@
-# Agent Board provider contract v2
+# Signals provider contract v2
 
-Agent Board exposes a versioned same-process provider contract for a separate Pi side panel. The provider remains the authority for revisions, validation, safety checks, persistence, delivery, acknowledgement, and mutations. The contract does not import or depend on Herdr.
+Signals exposes a versioned same-process provider contract for a separate Pi side panel. The provider remains the authority for revisions, validation, safety checks, persistence, delivery, acknowledgement, and mutations. The contract does not import or depend on Herdr. The primary standalone command is `/signals`. `/signalboard` is the compatibility alias. The provider does not register `/agent-board`.
 
 ## View channels
 
@@ -15,7 +15,7 @@ The snapshot is:
 ```ts
 {
   schemaVersion: 2,
-  productName: "Agent Board",
+  productName: "Signals",
   preferredCommand: string,
   health: "healthy" | "degraded" | "disabled" | "unsupported",
   openedAt: string,
@@ -52,6 +52,6 @@ Version 2 actions are:
 
 ## Compatibility and unsupported native behavior
 
-The existing v1 summary request/response, summary change event, v1 answer action, `/agent-board` command, `/agentboard` compatibility command, and native TUI remain unchanged. `open-ui` is the fallback for behavior that is inherently terminal or host-dialog specific: key navigation, help display, confirmation dialogs, text editor dialogs, and custom multiple-answer widgets. The side panel can represent all persisted board data and all provider mutations without that fallback.
+The existing v1 summary request/response, summary change event, v1 answer action, `/signals` command, `/signalboard` compatibility command, and native TUI remain unchanged. `open-ui` is the fallback for behavior that is inherently terminal or host-dialog specific: key navigation, help display, confirmation dialogs, text editor dialogs, and custom multiple-answer widgets. The side panel can represent all persisted board data and all provider mutations without that fallback.
 
-Synchronous `ask_user_question` and orchestrator questions are not Agent Board entities and remain outside this contract.
+Synchronous `ask_user_question` and orchestrator questions are not Signals entities and remain outside this contract.

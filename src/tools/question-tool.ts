@@ -210,7 +210,7 @@ export interface QuestionToolFailure {
 export type QuestionToolDetails = QuestionToolSuccess | QuestionToolFailure;
 
 export const QUESTION_TOOL_DESCRIPTION =
-  'Create, fully revise, or cancel a durable asynchronous Agent Board question.';
+  'Create, fully revise, or cancel a durable asynchronous Signals question.';
 export const QUESTION_TOOL_PROMPT_SNIPPET =
   'Queue a structured question only when useful independent work can continue.';
 export const QUESTION_TOOL_PROMPT_GUIDELINES = [
@@ -228,7 +228,7 @@ export function registerQuestionTool(
 ): void {
   pi.registerTool({
     name: QUESTION_TOOL_NAME,
-    label: 'Agent Board Question',
+    label: 'Signals Question',
     description: QUESTION_TOOL_DESCRIPTION,
     promptSnippet: QUESTION_TOOL_PROMPT_SNIPPET,
     promptGuidelines: QUESTION_TOOL_PROMPT_GUIDELINES,
@@ -300,7 +300,7 @@ export function registerQuestionTool(
 
 function throwFailure(id: string, error: SignalBoardError, pending: PendingToolFailures): never {
   pending.set(id, Object.freeze({ ok: false, error }));
-  throw new Error(`Agent Board tool failed (${error.code}).`);
+  throw new Error(`Signals tool failed (${error.code}).`);
 }
 
 function publicError(

@@ -1,6 +1,7 @@
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 
 import type { EffectiveConfig } from '../../config/types.js';
+import { COMMAND_INVOCATION } from '../../constants.js';
 import { sanitizeOneLine } from '../../domain/sanitization.js';
 import { selectBoardCounts, selectWidgetCandidates } from '../../domain/selectors.js';
 import type { BoardState, QuestionItem, UpdateItem } from '../../domain/types.js';
@@ -56,16 +57,16 @@ export function renderWidgetLines(
 }
 
 function renderHeader(questions: number, updates: number, unread: number, width: number): string {
-  if (questions === 0 && updates === 0) return 'SIGNAL · clear';
+  if (questions === 0 && updates === 0) return 'SIGNALS · clear';
   if (width < LONG_HEADER_MINIMUM_WIDTH) {
     const counts = [`${questions}Q`, `${updates}U`];
     if (unread > 0) counts.push(`${unread} new`);
-    return `SIGNAL · ${counts.join(' · ')}`;
+    return `SIGNALS · ${counts.join(' · ')}`;
   }
 
   const counts = [pluralCount(questions, 'question'), pluralCount(updates, 'update')];
   if (unread > 0) counts.push(`${unread} new`);
-  return `SIGNAL · ${counts.join(' · ')}`;
+  return `SIGNALS · ${counts.join(' · ')}`;
 }
 
 function renderQuestion(item: QuestionItem, width: number): string {
@@ -88,7 +89,7 @@ function renderItem(label: string, displayId: string, title: string, width: numb
 }
 
 function renderHint(effectiveCommand: string, width: number): string {
-  const command = safeText(effectiveCommand, '/agentboard');
+  const command = safeText(effectiveCommand, COMMAND_INVOCATION);
   return boundLine(`Open ${command}`, width);
 }
 

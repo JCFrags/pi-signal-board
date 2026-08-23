@@ -246,7 +246,7 @@ export function buildBoardViewModel(
       : {
           kind: 'unavailable',
           code: 'SB_CONFIG_DISABLED',
-          message: 'Agent Board is disabled by configuration.',
+          message: 'Signals is disabled by configuration.',
         },
     openedAt,
     initialTab,
@@ -333,12 +333,12 @@ export function boardModelFailure(
       ? {
           kind: 'unavailable',
           code: 'SB_UI_UNAVAILABLE',
-          message: 'Agent Board interactive UI is unavailable.',
+          message: 'Signals interactive UI is unavailable.',
         }
       : {
           kind: 'error',
           code: 'SB_INTERNAL',
-          message: 'Agent Board could not build a safe view.',
+          message: 'Signals could not build a safe view.',
         },
   );
 }

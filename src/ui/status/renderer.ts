@@ -9,9 +9,9 @@ export function renderStatusText(
 ): string | undefined {
   const counts = selectBoardCounts(state, currentTime);
   if (counts.actionableQuestions === 0 && counts.activeUpdates === 0 && counts.unread === 0) {
-    return hideWhenClear ? undefined : 'Signal: clear';
+    return hideWhenClear ? undefined : 'Signals: clear';
   }
 
   const unread = counts.unread > 0 ? ` ${counts.unread} new` : '';
-  return `Signal: ${counts.actionableQuestions}Q ${counts.activeUpdates}U${unread}`;
+  return `Signals: ${counts.actionableQuestions}Q ${counts.activeUpdates}U${unread}`;
 }
