@@ -8,7 +8,6 @@ import {
   COMMAND_INVOCATION,
   COMMAND_NAME,
   COMPATIBILITY_COMMAND_NAME,
-  LEGACY_COMMAND_NAME,
   PRODUCT_ID,
 } from '../constants.js';
 import { fail, signalBoardError, succeed } from '../domain/errors.js';
@@ -28,7 +27,7 @@ import {
 } from './dismiss-archive-actions.js';
 import type { ShortcutAvailability } from './shortcut-registration.js';
 
-const COMMAND_PATTERN = /^(?:agent-board|agentboard|signalboard)(?::[1-9][0-9]*)?$/u;
+const COMMAND_PATTERN = /^(?:signals|signalboard)(?::[1-9][0-9]*)?$/u;
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z';
 
 export interface CommandMetadata {
@@ -124,15 +123,11 @@ export function registerSignalBoardCommand(
     await handleSignalBoardCommand(raw, context, dependencies, resolve);
   };
   pi.registerCommand(COMMAND_NAME, {
-    description: 'Open Agent Board or show its summary and diagnostics.',
+    description: 'Open Signals or show its summary and diagnostics.',
     handler,
   });
   pi.registerCommand(COMPATIBILITY_COMMAND_NAME, {
-    description: 'Open Agent Board (compatibility alias).',
-    handler,
-  });
-  pi.registerCommand(LEGACY_COMMAND_NAME, {
-    description: 'Open Agent Board (legacy Signal Board alias).',
+    description: 'Open Signals (Signalboard compatibility alias).',
     handler,
   });
   return resolve;
@@ -254,7 +249,7 @@ async function openBoard(
       recordUiFailure(dependencies.lifecycle.slot.current(), dependencies.now);
       dependencies.emit(
         context,
-        'Agent Board interactive UI failed (SB_UI_UNAVAILABLE). No state changed.',
+        'Signals interactive UI failed (SB_UI_UNAVAILABLE). No state changed.',
       );
       return;
     } finally {
@@ -376,8 +371,8 @@ async function openBoard(
     dependencies.emit(
       context,
       preflight.ok
-        ? 'Agent Board action is not available in this build (SB_UI_UNAVAILABLE). No state changed.'
-        : `Agent Board action unavailable (${preflight.error.code}). No state changed.`,
+        ? 'Signals action is not available in this build (SB_UI_UNAVAILABLE). No state changed.'
+        : `Signals action unavailable (${preflight.error.code}). No state changed.`,
     );
   }
 
@@ -488,11 +483,11 @@ function safeTimestamp(now: () => Date): string {
 }
 
 function runtimeFailure(code: string): string {
-  return `Agent Board runtime unavailable (${code}). No state changed.`;
+  return `Signals runtime unavailable (${code}). No state changed.`;
 }
 
 function internalFailure(): string {
-  return 'Agent Board command failed safely (SB_INTERNAL). No state changed.';
+  return 'Signals command failed safely (SB_INTERNAL). No state changed.';
 }
 
 function countLabel(count: number, singular: string): string {

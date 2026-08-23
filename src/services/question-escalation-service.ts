@@ -119,10 +119,7 @@ export class QuestionEscalationService {
   async #postDurable(displayId: string, state: BoardState, at: string): Promise<void> {
     if (this.#dependencies.config.notifications.questionEscalated) {
       try {
-        await this.#dependencies.notify(
-          `Agent Board escalated ${displayId} to blocking.`,
-          'warning',
-        );
+        await this.#dependencies.notify(`Signals escalated ${displayId} to blocking.`, 'warning');
       } catch {
         this.#recordPostDurableFailure('notification', at);
       }
@@ -169,7 +166,7 @@ function isCanonicalTimestamp(value: string): boolean {
 function internalError() {
   return Object.freeze({
     code: 'SB_INTERNAL' as const,
-    message: 'Agent Board encountered an unexpected internal error.',
+    message: 'Signals encountered an unexpected internal error.',
     retryable: true,
   });
 }

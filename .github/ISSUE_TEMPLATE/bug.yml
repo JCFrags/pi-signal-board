@@ -1,12 +1,12 @@
 name: Bug report
-description: Report a reproducible Agent Board defect
+description: Report a reproducible Signals defect
 title: "[bug] "
 labels: ["type:bug"]
 body:
   - type: input
     id: version
     attributes:
-      label: Agent Board, Pi, and Node versions
+      label: Signals, Pi, and Node versions
     validations:
       required: true
   - type: textarea

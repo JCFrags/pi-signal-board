@@ -76,7 +76,7 @@ export function formatDoctorReport(
   const diagnostics = health.diagnostics;
 
   return [
-    'AGENT BOARD DOCTOR',
+    'SIGNALS DOCTOR',
     '',
     `Status: ${health.status}`,
     `Extension: ${PRODUCT_NAME} ${PRODUCT_VERSION}`,
@@ -106,7 +106,7 @@ export function formatDoctorReport(
 
 export function formatM0Usage(): string {
   return [
-    'Agent Board M0 diagnostic shell. Board actions are not available and no state changed.',
+    'Signals M0 diagnostic shell. Board actions are not available and no state changed.',
     `Usage: ${COMMAND_INVOCATION} doctor`,
   ].join('\n');
 }

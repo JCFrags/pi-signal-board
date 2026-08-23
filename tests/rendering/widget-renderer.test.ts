@@ -22,7 +22,7 @@ const request = (
 ): WidgetRenderRequest => ({
   completedWindowCutoff: time(0),
   currentTime: time(59),
-  effectiveCommand: '/agentboard',
+  effectiveCommand: '/signalboard',
   width,
   ...overrides,
 });
@@ -53,7 +53,7 @@ describe('SB-017 compact widget renderer', () => {
           'SIGNAL · 1Q · 1U',
           '[BLOCKED] Q-1 Preserve the deprecated cache optio…',
           '[WARNING] U-2 Auth refactor — testing',
-          'Open /agentboard:1',
+          'Open /signalboard:1',
         ],
       ],
       [
@@ -62,7 +62,7 @@ describe('SB-017 compact widget renderer', () => {
           'SIGNAL · 1 question · 1 update',
           '[BLOCKED] Q-1 Preserve the deprecated cache option while compatibility tests ru…',
           '[WARNING] U-2 Auth refactor — testing',
-          'Open /agentboard:1',
+          'Open /signalboard:1',
         ],
       ],
       [
@@ -71,7 +71,7 @@ describe('SB-017 compact widget renderer', () => {
           'SIGNAL · 1 question · 1 update',
           '[BLOCKED] Q-1 Preserve the deprecated cache option while compatibility tests run?',
           '[WARNING] U-2 Auth refactor — testing',
-          'Open /agentboard:1',
+          'Open /signalboard:1',
         ],
       ],
       [
@@ -80,7 +80,7 @@ describe('SB-017 compact widget renderer', () => {
           'SIGNAL · 1 question · 1 update',
           '[BLOCKED] Q-1 Preserve the deprecated cache option while compatibility tests run?',
           '[WARNING] U-2 Auth refactor — testing',
-          'Open /agentboard:1',
+          'Open /signalboard:1',
         ],
       ],
       [
@@ -89,7 +89,7 @@ describe('SB-017 compact widget renderer', () => {
           'SIGNAL · 1 question · 1 update',
           '[BLOCKED] Q-1 Preserve the deprecated cache option while compatibility tests run?',
           '[WARNING] U-2 Auth refactor — testing',
-          'Open /agentboard:1',
+          'Open /signalboard:1',
         ],
       ],
     ]);
@@ -98,7 +98,7 @@ describe('SB-017 compact widget renderer', () => {
       const lines = renderWidgetLines(
         state,
         widgetConfig(),
-        request(width, { effectiveCommand: '/agentboard:1' }),
+        request(width, { effectiveCommand: '/signalboard:1' }),
       );
       expect(lines, `width ${width}`).toEqual(golden);
       expectWidthBound(lines, width);
@@ -239,7 +239,7 @@ describe('SB-017 compact widget renderer', () => {
     ).toEqual([]);
     expect(renderWidgetLines(empty, widgetConfig({ hideWhenClear: false }), request(80))).toEqual([
       'SIGNAL · clear',
-      'Open /agentboard',
+      'Open /signalboard',
     ]);
   });
 
@@ -286,11 +286,11 @@ describe('SB-017 compact widget renderer', () => {
     const lines = renderWidgetLines(
       state,
       widgetConfig(),
-      request(120, { effectiveCommand: '/agentboard:2\u001b[5m' }),
+      request(120, { effectiveCommand: '/signalboard:2\u001b[5m' }),
     );
     const output = lines.join('\n');
     expect(output).toContain('[WORKING] U-1 Red link safetext');
-    expect(output).toContain('Open /agentboard:2');
+    expect(output).toContain('Open /signalboard:2');
     expect(
       [...output].some((character) => {
         const codePoint = character.codePointAt(0) ?? 0;

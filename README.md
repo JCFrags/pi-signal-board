@@ -1,6 +1,6 @@
-# Agent Board
+# Signals
 
-Agent Board keeps significant coding-agent updates visible outside the chat transcript and provides a structured asynchronous question inbox.
+Signals keeps significant coding-agent updates visible outside the chat transcript and provides a structured asynchronous question inbox.
 
 ## Requirements
 
@@ -28,21 +28,21 @@ pi -e npm:pi-signal-board
 
 ## Use
 
-- Open the board with `/agentboard` or `Ctrl+Shift+B`.
-- Run `/agentboard summary` for a plain text summary.
-- Run `/agentboard doctor` for redacted compatibility and replay diagnostics.
+- Open the board with `/signalboard` or `Ctrl+Shift+B`.
+- Run `/signalboard summary` for a plain text summary.
+- Run `/signalboard doctor` for redacted compatibility and replay diagnostics.
 - `/signalboard` remains a compatibility alias.
-- Agents receive three Agent Board tools: `signal_board_update`, `signal_board_question`, and `signal_board_ack`.
+- Agents receive three Signals tools: `signal_board_update`, `signal_board_question`, and `signal_board_ack`.
 
 Answers are delivered at least once. The agent deduplicates by immutable answer ID and acknowledges whether the answer was applied.
 
 ## Questions
 
-`ask_user_question` is synchronous and blocking. It waits for the user's answer in the current interaction. `signal_board_question` creates a durable asynchronous Agent Board question, so independent work can continue. Both tools remain because their behavior differs.
+`ask_user_question` is synchronous and blocking. It waits for the user's answer in the current interaction. `signal_board_question` creates a durable asynchronous Signals question, so independent work can continue. Both tools remain because their behavior differs.
 
 ## Ownership
 
-Agent Board owns only its board events and asynchronous question inbox. The orchestrator remains the task authority. A todo product remains a local checklist. Agent Board does not replace either one.
+Signals owns only its board events and asynchronous question inbox. The orchestrator remains the task authority. A todo product remains a local checklist. Signals does not replace either one.
 
 ## Data and privacy
 
@@ -65,4 +65,4 @@ pi remove npm:pi-signal-board
 
 ## Security
 
-Pi extensions run with the user's process permissions. Review package source before installing. Agent Board intentionally performs no shell execution, process spawning, network requests, arbitrary project reads, or automatic attachment activation. See `SECURITY.md` for reporting.
+Pi extensions run with the user's process permissions. Review package source before installing. Signals intentionally performs no shell execution, process spawning, network requests, arbitrary project reads, or automatic attachment activation. See `SECURITY.md` for reporting.

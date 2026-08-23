@@ -111,7 +111,7 @@ export function createSignalBoardExtension(
       const invocation =
         overrides.effectiveCommand?.(runtime as SignalBoardRuntime) ?? COMMAND_INVOCATION;
       return {
-        baseName: 'agent-board' as const,
+        baseName: 'signals' as const,
         invocationName: invocation.replace(/^\//u, ''),
         invocation,
         discovered: false,
@@ -243,7 +243,7 @@ export function createSignalBoardExtension(
       onFailure: (context) =>
         safeEmit(
           context,
-          'Agent Board command failed safely (SB_INTERNAL). No state changed.',
+          'Signals command failed safely (SB_INTERNAL). No state changed.',
           adapters.writePrint,
         ),
     });
@@ -258,7 +258,7 @@ export function createSignalBoardExtension(
             ok: false,
             error: {
               code: 'SB_NOT_INITIALIZED',
-              message: 'Agent Board is not initialized.',
+              message: 'Signals is not initialized.',
               retryable: true,
             },
           };
@@ -278,7 +278,7 @@ export function createSignalBoardExtension(
               ok: false as const,
               error: {
                 code: 'SB_NOT_INITIALIZED',
-                message: 'Agent Board is not initialized.',
+                message: 'Signals is not initialized.',
                 retryable: true,
               },
             };
@@ -308,7 +308,7 @@ export function createSignalBoardExtension(
               ok: false as const,
               error: {
                 code: 'SB_NOT_INITIALIZED',
-                message: 'Agent Board is not initialized.',
+                message: 'Signals is not initialized.',
                 retryable: true,
               },
             };
@@ -525,7 +525,7 @@ function constructRuntimeServices(
   const requireCurrent = (): SignalBoardRuntime => {
     const current = lifecycle.slot.current();
     if (current?.generation !== generation || current.disposed || current.status !== 'healthy') {
-      throw new Error('Stale Agent Board runtime.');
+      throw new Error('Stale Signals runtime.');
     }
     return current;
   };
@@ -718,7 +718,7 @@ function safeAdapterTimestamp(now: () => Date): string {
 function registerStaticRenderers(pi: ExtensionAPI): void {
   pi.registerMessageRenderer(
     ANSWER_CUSTOM_TYPE,
-    (_message, _options, theme) => new Text(theme.fg('muted', '[Agent Board answer]'), 0, 0),
+    (_message, _options, theme) => new Text(theme.fg('muted', '[Signals answer]'), 0, 0),
   );
 }
 

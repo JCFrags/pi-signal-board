@@ -31,7 +31,7 @@ describe('product constants', () => {
   it('exports the exact package and compatibility facts', () => {
     expect({ PRODUCT_ID, PRODUCT_NAME, PRODUCT_VERSION }).toEqual({
       PRODUCT_ID: 'pi-signal-board',
-      PRODUCT_NAME: 'Agent Board',
+      PRODUCT_NAME: 'Signals',
       PRODUCT_VERSION: '0.1.0',
     });
     expect(SUPPORTED_NODE_RANGE).toBe('>=22.19.0');
@@ -43,15 +43,15 @@ describe('product constants', () => {
     expect(ANSWER_CUSTOM_TYPE).toBe('pi-signal-board/answer');
     expect(WIDGET_ID).toBe('pi-signal-board');
     expect(STATUS_ID).toBe('pi-signal-board');
-    expect(COMMAND_NAME).toBe('agent-board');
-    expect(COMMAND_INVOCATION).toBe('/agent-board');
-    expect(COMPATIBILITY_COMMAND_NAME).toBe('agentboard');
-    expect(COMPATIBILITY_COMMAND_INVOCATION).toBe('/agentboard');
+    expect(COMMAND_NAME).toBe('signals');
+    expect(COMMAND_INVOCATION).toBe('/signals');
+    expect(COMPATIBILITY_COMMAND_NAME).toBe('signalboard');
+    expect(COMPATIBILITY_COMMAND_INVOCATION).toBe('/signalboard');
     expect(LEGACY_COMMAND_NAME).toBe('signalboard');
     expect(LEGACY_COMMAND_INVOCATION).toBe('/signalboard');
     expect(SHORTCUT).toBe('ctrl+shift+b');
     expect(SHORTCUT_DISPLAY).toBe('Ctrl+Shift+B');
-    expect(SHORTCUT_DESCRIPTION).toBe('Open Agent Board');
+    expect(SHORTCUT_DESCRIPTION).toBe('Open Signals');
   });
 
   it('exports exact tool and configuration facts for later lanes', () => {

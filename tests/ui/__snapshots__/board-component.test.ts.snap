@@ -2,14 +2,14 @@
 
 exports[`SB-027 board component rendering > matches the approved width-49 golden fixture 1`] = `
 [
-  "Agent Board requires at least 50 columns. Resize",
-  "the terminal or press Esc.",
+  "Signals requires at least 50 columns. Resize the",
+  "terminal or press Esc.",
 ]
 `;
 
 exports[`SB-027 board component rendering > matches the approved width-50 golden fixture 1`] = `
 [
-  "AGENT BOARD · Inbox 1/1",
+  "SIGNALS · Inbox 1/1",
   "[Inbox 1] [Updates 1] [Decisions 0] [History 1]",
   "──────────────────────────────────────────────────",
   "> [PENDING] Q-1 Preserve the deprecated cache opt…",
@@ -23,7 +23,7 @@ exports[`SB-027 board component rendering > matches the approved width-50 golden
 
 exports[`SB-027 board component rendering > matches the approved width-80 golden fixture 1`] = `
 [
-  "AGENT BOARD · Inbox 1/1",
+  "SIGNALS · Inbox 1/1",
   "[Inbox 1]   [Updates 1]   [Decisions 0]   [History 1]",
   "────────────────────────────────────────────────────────────────────────────────",
   "> [PENDING] Q-1 Preserve the deprecated cache option? 🧪",
@@ -35,7 +35,7 @@ exports[`SB-027 board component rendering > matches the approved width-80 golden
 
 exports[`SB-027 board component rendering > matches the approved width-99 golden fixture 1`] = `
 [
-  "AGENT BOARD · Inbox 1/1",
+  "SIGNALS · Inbox 1/1",
   "[Inbox 1]   [Updates 1]   [Decisions 0]   [History 1]",
   "───────────────────────────────────────────────────────────────────────────────────────────────────",
   "> [PENDING] Q-1 Preserve the deprecated cache option? 🧪",
@@ -47,7 +47,7 @@ exports[`SB-027 board component rendering > matches the approved width-99 golden
 
 exports[`SB-027 board component rendering > matches the approved width-100 golden fixture 1`] = `
 [
-  "AGENT BOARD",
+  "SIGNALS",
   "[Inbox 1]   [Updates 1]   [Decisions 0]   [History 1]",
   "────────────────────────────────────────────────────────────────────────────────────────────────────",
   "> [PENDING] Q-1 Preserve the deprecat…│Q-1 · revision 4",
@@ -70,7 +70,7 @@ exports[`SB-027 board component rendering > matches the approved width-100 golde
 
 exports[`SB-027 board component rendering > matches the approved width-160 golden fixture 1`] = `
 [
-  "AGENT BOARD",
+  "SIGNALS",
   "[Inbox 1]   [Updates 1]   [Decisions 0]   [History 1]",
   "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
   "> [PENDING] Q-1 Preserve the deprecated cache…│Q-1 · revision 4",

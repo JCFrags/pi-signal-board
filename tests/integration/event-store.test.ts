@@ -182,7 +182,7 @@ describe('PiSessionStore', () => {
       ok: false,
       error: {
         code: 'SB_PERSISTENCE_FAILED',
-        message: 'Agent Board could not save the change. No success was recorded.',
+        message: 'Signals could not save the change. No success was recorded.',
         retryable: true,
         correlationId: 'sb-store-1',
       },

@@ -27,9 +27,9 @@ function makeRuntime(): SignalBoardRuntime {
     disposeCount: 0,
     notifications: new Set(),
     effectiveCommand: {
-      baseName: 'agent-board',
+      baseName: 'signals',
       invocationName: 'agentboard',
-      invocation: '/agentboard',
+      invocation: '/signalboard',
       discovered: false,
       collision: false,
       ambiguous: false,
@@ -37,7 +37,7 @@ function makeRuntime(): SignalBoardRuntime {
   };
 }
 
-describe('Agent Board provider contract v2', () => {
+describe('Signals provider contract v2', () => {
   it('returns the native four-view bounded snapshot with correlated request ID', () => {
     const handlers = new Map<string, Set<Handler>>();
     const emitted: Array<{ channel: string; data: unknown }> = [];

@@ -114,14 +114,14 @@ export interface AckToolFailure {
 export type AckToolDetails = AckToolSuccess | AckToolFailure;
 
 export const ACK_TOOL_DESCRIPTION =
-  'Acknowledge one immutable Agent Board answer after deduplicating and applying it.';
+  'Acknowledge one immutable Signals answer after deduplicating and applying it.';
 export const ACK_TOOL_PROMPT_SNIPPET =
-  'Acknowledge whether a delivered Agent Board answer was applied.';
+  'Acknowledge whether a delivered Signals answer was applied.';
 export const ACK_TOOL_PROMPT_GUIDELINES = [
   'Deduplicate delivered answers by answerId before acting, then call signal_board_ack once for that answerId.',
   'Use signal_board_ack outcome applied or superseded only when the answer produced a durable decision.',
   'Use signal_board_ack outcome cannot_apply or partially_applied when more user attention is required.',
-  'Agent Board records its inbox events only. Do not use signal_board_ack as task authority or as a todo checklist.',
+  'Signals records its inbox events only. Do not use signal_board_ack as task authority or as a todo checklist.',
 ];
 
 export function registerAckTool(
@@ -131,7 +131,7 @@ export function registerAckTool(
 ): void {
   pi.registerTool({
     name: ACK_TOOL_NAME,
-    label: 'Agent Board Acknowledgement',
+    label: 'Signals Acknowledgement',
     description: ACK_TOOL_DESCRIPTION,
     promptSnippet: ACK_TOOL_PROMPT_SNIPPET,
     promptGuidelines: ACK_TOOL_PROMPT_GUIDELINES,
@@ -223,7 +223,7 @@ function successText(details: AckToolSuccess): string {
 
 function throwFailure(id: string, error: SignalBoardError, pending: PendingToolFailures): never {
   pending.set(id, Object.freeze({ ok: false, error }));
-  throw new Error(`Agent Board tool failed (${error.code}).`);
+  throw new Error(`Signals tool failed (${error.code}).`);
 }
 
 function publicError(

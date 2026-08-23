@@ -50,9 +50,9 @@ function runtime(): SignalBoardRuntime {
     disposeCount: 0,
     notifications: new Set(),
     effectiveCommand: {
-      baseName: 'agent-board',
+      baseName: 'signals',
       invocationName: 'agentboard',
-      invocation: '/agentboard',
+      invocation: '/signalboard',
       discovered: true,
       collision: false,
       ambiguous: false,
@@ -60,7 +60,7 @@ function runtime(): SignalBoardRuntime {
   };
 }
 
-describe('Agent Board event-bus contract', () => {
+describe('Signals event-bus contract', () => {
   it('responds with a versioned bounded snapshot only after startup', () => {
     const bus = eventBus();
     const current = runtime();
@@ -78,8 +78,8 @@ describe('Agent Board event-bus contract', () => {
       requestId: 'deck-1',
       snapshot: {
         schemaVersion: 1,
-        productName: 'Agent Board',
-        preferredCommand: '/agent-board',
+        productName: 'Signals',
+        preferredCommand: '/signals',
         health: 'healthy',
         pendingAsyncQuestionCount: 0,
         pendingQuestions: [],
@@ -94,23 +94,48 @@ describe('Agent Board event-bus contract', () => {
     const bus = eventBus();
     const registration = registerAgentBoardEventBus(bus, runtime, {
       openUi: async () => ({ ok: true }),
-      answerQuestion: async (request) => ({ ok: true, answerId: `answer-for-${request.questionId}` }),
+      answerQuestion: async (request) => ({
+        ok: true,
+        answerId: `answer-for-${request.questionId}`,
+      }),
     });
     registration.start();
-    bus.emit(AGENT_BOARD_ACTION_REQUEST_EVENT, { schemaVersion: 1, requestId: 'open-1', action: 'open-ui' });
     bus.emit(AGENT_BOARD_ACTION_REQUEST_EVENT, {
-      schemaVersion: 1, requestId: 'answer-1', action: 'answer-question', questionId: 'question:1',
-      expectedRevision: 1, source: 'manual', value: { kind: 'text', text: 'yes' },
+      schemaVersion: 1,
+      requestId: 'open-1',
+      action: 'open-ui',
+    });
+    bus.emit(AGENT_BOARD_ACTION_REQUEST_EVENT, {
+      schemaVersion: 1,
+      requestId: 'answer-1',
+      action: 'answer-question',
+      questionId: 'question:1',
+      expectedRevision: 1,
+      source: 'manual',
+      value: { kind: 'text', text: 'yes' },
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const responses = bus.emitted.filter((entry) => entry.channel === AGENT_BOARD_ACTION_RESPONSE_EVENT);
+    const responses = bus.emitted.filter(
+      (entry) => entry.channel === AGENT_BOARD_ACTION_RESPONSE_EVENT,
+    );
     expect(responses).toHaveLength(2);
     expect(responses[0]?.data).toMatchObject({ schemaVersion: 1, requestId: 'open-1', ok: true });
-    expect(responses[1]?.data).toMatchObject({ schemaVersion: 1, requestId: 'answer-1', ok: true, value: { answerId: 'answer-for-question:1' } });
+    expect(responses[1]?.data).toMatchObject({
+      schemaVersion: 1,
+      requestId: 'answer-1',
+      ok: true,
+      value: { answerId: 'answer-for-question:1' },
+    });
     registration.shutdown();
-    bus.emit(AGENT_BOARD_ACTION_REQUEST_EVENT, { schemaVersion: 1, requestId: 'after', action: 'open-ui' });
+    bus.emit(AGENT_BOARD_ACTION_REQUEST_EVENT, {
+      schemaVersion: 1,
+      requestId: 'after',
+      action: 'open-ui',
+    });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(bus.emitted.filter((entry) => entry.channel === AGENT_BOARD_ACTION_RESPONSE_EVENT)).toHaveLength(2);
+    expect(
+      bus.emitted.filter((entry) => entry.channel === AGENT_BOARD_ACTION_RESPONSE_EVENT),
+    ).toHaveLength(2);
   });
 
   it('notifies only when a committed snapshot changes and removes listeners on shutdown', () => {
@@ -121,14 +146,20 @@ describe('Agent Board event-bus contract', () => {
 
     registration.notifyCommittedChange();
     registration.notifyCommittedChange();
-    expect(bus.emitted.filter((entry) => entry.channel === AGENT_BOARD_SUMMARY_CHANGED_EVENT)).toHaveLength(1);
+    expect(
+      bus.emitted.filter((entry) => entry.channel === AGENT_BOARD_SUMMARY_CHANGED_EVENT),
+    ).toHaveLength(1);
 
     current = { ...current, status: 'degraded' };
     registration.notifyCommittedChange();
-    expect(bus.emitted.filter((entry) => entry.channel === AGENT_BOARD_SUMMARY_CHANGED_EVENT)).toHaveLength(2);
+    expect(
+      bus.emitted.filter((entry) => entry.channel === AGENT_BOARD_SUMMARY_CHANGED_EVENT),
+    ).toHaveLength(2);
 
     registration.shutdown();
     bus.request({ schemaVersion: 1, requestId: 'after-shutdown' });
-    expect(bus.emitted.filter((entry) => entry.channel === AGENT_BOARD_SUMMARY_EVENT)).toHaveLength(0);
+    expect(bus.emitted.filter((entry) => entry.channel === AGENT_BOARD_SUMMARY_EVENT)).toHaveLength(
+      0,
+    );
   });
 });

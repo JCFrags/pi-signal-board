@@ -37,7 +37,7 @@
     "agent"
   ],
   "license": "MIT",
-  "author": "Agent Board contributors",
+  "author": "Signals contributors",
   "engines": {
     "node": ">=22.19.0"
   },

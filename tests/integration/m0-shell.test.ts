@@ -171,8 +171,7 @@ describe('M0 registration and doctor shell', () => {
     await harness.dispatch('session_start', { type: 'session_start', reason: 'reload' });
 
     expect(harness.registrations.commands.map((entry) => entry.name)).toEqual([
-      'agent-board',
-      'agentboard',
+      'signals',
       'signalboard',
     ]);
     expect(harness.registrationCount('tools')).toBe(3);
@@ -224,7 +223,7 @@ describe('M0 registration and doctor shell', () => {
     }
     for (const args of ['doctor extra', 'unknown']) {
       expect(await runCommand(harness, args)).toContain(
-        'Usage: /agent-board [inbox|updates|decisions|history|summary|doctor]',
+        'Usage: /signals [inbox|updates|decisions|history|summary|doctor]',
       );
     }
     expect(harness.appendCalls).toHaveLength(0);
