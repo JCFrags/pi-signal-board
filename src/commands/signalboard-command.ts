@@ -127,7 +127,7 @@ export function registerSignalBoardCommand(
     handler,
   });
   pi.registerCommand(COMPATIBILITY_COMMAND_NAME, {
-    description: 'Open Signals (Signalboard compatibility alias).',
+    description: 'Open Signals (compatibility alias).',
     handler,
   });
   return resolve;

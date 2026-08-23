@@ -22,7 +22,7 @@ const request = (
 ): WidgetRenderRequest => ({
   completedWindowCutoff: time(0),
   currentTime: time(59),
-  effectiveCommand: '/signalboard',
+  effectiveCommand: '/signals',
   width,
   ...overrides,
 });
@@ -50,7 +50,7 @@ describe('SB-017 compact widget renderer', () => {
       [
         50,
         [
-          'SIGNAL · 1Q · 1U',
+          'SIGNALS · 1Q · 1U',
           '[BLOCKED] Q-1 Preserve the deprecated cache optio…',
           '[WARNING] U-2 Auth refactor — testing',
           'Open /signalboard:1',
@@ -59,7 +59,7 @@ describe('SB-017 compact widget renderer', () => {
       [
         80,
         [
-          'SIGNAL · 1 question · 1 update',
+          'SIGNALS · 1 question · 1 update',
           '[BLOCKED] Q-1 Preserve the deprecated cache option while compatibility tests ru…',
           '[WARNING] U-2 Auth refactor — testing',
           'Open /signalboard:1',
@@ -68,7 +68,7 @@ describe('SB-017 compact widget renderer', () => {
       [
         100,
         [
-          'SIGNAL · 1 question · 1 update',
+          'SIGNALS · 1 question · 1 update',
           '[BLOCKED] Q-1 Preserve the deprecated cache option while compatibility tests run?',
           '[WARNING] U-2 Auth refactor — testing',
           'Open /signalboard:1',
@@ -77,7 +77,7 @@ describe('SB-017 compact widget renderer', () => {
       [
         120,
         [
-          'SIGNAL · 1 question · 1 update',
+          'SIGNALS · 1 question · 1 update',
           '[BLOCKED] Q-1 Preserve the deprecated cache option while compatibility tests run?',
           '[WARNING] U-2 Auth refactor — testing',
           'Open /signalboard:1',
@@ -86,7 +86,7 @@ describe('SB-017 compact widget renderer', () => {
       [
         240,
         [
-          'SIGNAL · 1 question · 1 update',
+          'SIGNALS · 1 question · 1 update',
           '[BLOCKED] Q-1 Preserve the deprecated cache option while compatibility tests run?',
           '[WARNING] U-2 Auth refactor — testing',
           'Open /signalboard:1',
@@ -184,7 +184,7 @@ describe('SB-017 compact widget renderer', () => {
       request(50),
     );
     expect(lines).toHaveLength(4);
-    expect(lines[0]).toBe('SIGNAL · 2Q · 2U');
+    expect(lines[0]).toBe('SIGNALS · 2Q · 2U');
     expect(itemIds(lines)).toEqual(['Q-1', 'U-1']);
   });
 
@@ -218,10 +218,10 @@ describe('SB-017 compact widget renderer', () => {
     const state = widgetState({ updates: [item], visibleChanges: [change] });
     expect(
       renderWidgetLines(state, widgetConfig(), request(50, { currentTime: time(19) }))[0],
-    ).toBe('SIGNAL · 0Q · 1U');
+    ).toBe('SIGNALS · 0Q · 1U');
     expect(
       renderWidgetLines(state, widgetConfig(), request(50, { currentTime: time(20) }))[0],
-    ).toBe('SIGNAL · 0Q · 1U · 1 new');
+    ).toBe('SIGNALS · 0Q · 1U · 1 new');
   });
 
   it('clears disabled and default empty widgets, and renders an explicit configured clear state', () => {
@@ -238,8 +238,8 @@ describe('SB-017 compact widget renderer', () => {
       ),
     ).toEqual([]);
     expect(renderWidgetLines(empty, widgetConfig({ hideWhenClear: false }), request(80))).toEqual([
-      'SIGNAL · clear',
-      'Open /signalboard',
+      'SIGNALS · clear',
+      'Open /signals',
     ]);
   });
 

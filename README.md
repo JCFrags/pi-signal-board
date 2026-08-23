@@ -54,7 +54,7 @@ Global configuration: `~/.pi/agent/pi-signal-board.json`.
 
 Trusted project configuration: `<project>/.pi/pi-signal-board.json` (using Pi's configured project directory name). Project configuration is not read unless Pi reports the project trusted.
 
-See the package documentation for the complete version-1 schema and defaults. Separate integrations can use the exported read-only `getAgentBoardSummary` API without coupling to Herdr or another orchestrator.
+See the package documentation for the complete version-1 schema and defaults. Separate integrations can use the exported read-only Signals summary API. The exported `getAgentBoardSummary` name remains a compatibility namespace for existing consumers.
 
 ## Update and remove
 

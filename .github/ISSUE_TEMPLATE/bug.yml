@@ -31,5 +31,5 @@ body:
   - type: textarea
     id: diagnostics
     attributes:
-      label: Redacted /signalboard doctor output
+      label: Redacted /signals doctor output
       description: Remove prompt, answer, secret, and private path content.
