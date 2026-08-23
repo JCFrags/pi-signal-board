@@ -1,6 +1,6 @@
 # Signals provider contract v2
 
-Signals exposes a versioned same-process provider contract for a separate Pi side panel. The provider remains the authority for revisions, validation, safety checks, persistence, delivery, acknowledgement, and mutations. The contract does not import or depend on Herdr.
+Signals exposes a versioned same-process provider contract for a separate Pi side panel. The provider remains the authority for revisions, validation, safety checks, persistence, delivery, acknowledgement, and mutations. The contract does not import or depend on Herdr. The primary standalone command is `/signals`. `/signalboard` is the compatibility alias. The provider does not register `/agent-board`.
 
 ## View channels
 

@@ -51,8 +51,8 @@ function runtime(): SignalBoardRuntime {
     notifications: new Set(),
     effectiveCommand: {
       baseName: 'signals',
-      invocationName: 'agentboard',
-      invocation: '/signalboard',
+      invocationName: 'signals',
+      invocation: '/signals',
       discovered: true,
       collision: false,
       ambiguous: false,

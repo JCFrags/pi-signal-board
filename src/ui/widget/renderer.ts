@@ -1,6 +1,7 @@
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 
 import type { EffectiveConfig } from '../../config/types.js';
+import { COMMAND_INVOCATION } from '../../constants.js';
 import { sanitizeOneLine } from '../../domain/sanitization.js';
 import { selectBoardCounts, selectWidgetCandidates } from '../../domain/selectors.js';
 import type { BoardState, QuestionItem, UpdateItem } from '../../domain/types.js';
@@ -88,7 +89,7 @@ function renderItem(label: string, displayId: string, title: string, width: numb
 }
 
 function renderHint(effectiveCommand: string, width: number): string {
-  const command = safeText(effectiveCommand, '/signalboard');
+  const command = safeText(effectiveCommand, COMMAND_INVOCATION);
   return boundLine(`Open ${command}`, width);
 }
 

@@ -28,8 +28,8 @@ function makeRuntime(): SignalBoardRuntime {
     notifications: new Set(),
     effectiveCommand: {
       baseName: 'signals',
-      invocationName: 'agentboard',
-      invocation: '/signalboard',
+      invocationName: 'signals',
+      invocation: '/signals',
       discovered: false,
       collision: false,
       ambiguous: false,

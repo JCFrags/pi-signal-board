@@ -1,6 +1,6 @@
 # Signals event bus
 
-Signals exposes a small same-process contract for independent Pi extensions. It has no Herdr or orchestrator dependency.
+Signals exposes a small same-process contract for independent Pi extensions. It has no Herdr or orchestrator dependency. `/signals` is the primary standalone command. `/signalboard` is the compatibility alias. The `pi-agent-board:*` event names and exported `AgentBoard*` TypeScript names remain compatibility namespaces for existing consumers.
 
 The Pi 0.84.2 event API is `pi.events.on(channel, handler)` and `pi.events.emit(channel, data)`. `on` returns an unsubscribe function. It does not provide reply callbacks. A request therefore includes a `requestId`, and Signals emits the response on a separate event.
 
@@ -27,7 +27,7 @@ Response payload:
   snapshot: {
     schemaVersion: 1,
     productName: "Signals",
-    preferredCommand: "/signalboard",
+    preferredCommand: "/signals",
     health: "healthy" | "degraded" | "disabled" | "unsupported",
     pendingAsyncQuestionCount: number,
     pendingQuestions: Array<{

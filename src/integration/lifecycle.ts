@@ -4,7 +4,7 @@ import type { ExtensionAPI, ExtensionContext, SessionEntry } from '@earendil-wor
 import { DEFAULT_CONFIG } from '../config/defaults.js';
 import type { ConfigLoadContext } from '../config/loader.js';
 import type { ConfigLoadResult, ConfigWarning } from '../config/types.js';
-import { STATUS_ID, WIDGET_ID } from '../constants.js';
+import { COMMAND_INVOCATION, STATUS_ID, WIDGET_ID } from '../constants.js';
 import { fail, type Result, signalBoardError } from '../domain/errors.js';
 import { createEmptyBoardState } from '../domain/reducer.js';
 import { type ReplayOutcome, replayBranch } from '../persistence/replay.js';
@@ -428,12 +428,12 @@ export class RuntimeLifecycle {
     runtime.notifications.add('startup');
     const message =
       runtime.status === 'unsupported'
-        ? 'Signals is unavailable on this host. Run /signalboard doctor.'
+        ? `Signals is unavailable on this host. Run ${COMMAND_INVOCATION} doctor.`
         : runtime.status === 'disabled'
-          ? 'Signals is disabled. Run /signalboard doctor.'
+          ? `Signals is disabled. Run ${COMMAND_INVOCATION} doctor.`
           : runtime.status === 'healthy'
-            ? 'Signals started with recoverable warnings. Run /signalboard doctor.'
-            : 'Signals startup failed safely. Run /signalboard doctor.';
+            ? `Signals started with recoverable warnings. Run ${COMMAND_INVOCATION} doctor.`
+            : `Signals startup failed safely. Run ${COMMAND_INVOCATION} doctor.`;
     safeUiCall(runtime, 'notification', () => runtime.context.ui.notify(message, 'warning'));
   }
 }

@@ -28,9 +28,9 @@ pi -e npm:pi-signal-board
 
 ## Use
 
-- Open the board with `/signalboard` or `Ctrl+Shift+B`.
-- Run `/signalboard summary` for a plain text summary.
-- Run `/signalboard doctor` for redacted compatibility and replay diagnostics.
+- Open Signals with `/signals` or `Ctrl+Shift+B`.
+- Run `/signals summary` for a plain text summary.
+- Run `/signals doctor` for redacted compatibility and replay diagnostics.
 - `/signalboard` remains a compatibility alias.
 - Agents receive three Signals tools: `signal_board_update`, `signal_board_question`, and `signal_board_ack`.
 

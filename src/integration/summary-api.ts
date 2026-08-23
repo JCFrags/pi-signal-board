@@ -79,7 +79,7 @@ export function getAgentBoardSummary(
   return Object.freeze({
     productName: PRODUCT_NAME,
     status: runtime.status,
-    command: runtime.effectiveCommand?.invocation ?? '/signalboard',
+    command: runtime.effectiveCommand?.invocation ?? COMMAND_INVOCATION,
     summary: selectSummary(runtime.state, limit),
   });
 }
