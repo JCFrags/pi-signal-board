@@ -408,7 +408,7 @@ export function formatPlainSummary(
   const questions = summary.items.filter((entry) => entry.entityType === 'question');
   const updates = summary.items.filter((entry) => entry.entityType === 'update');
   const lines = [
-    `Signal: ${countLabel(summary.counts.actionableQuestions, 'actionable question')}, ${countLabel(summary.counts.activeUpdates, 'active update')}, ${countLabel(summary.counts.unread, 'unread change')}.`,
+    `Signals: ${countLabel(summary.counts.actionableQuestions, 'actionable question')}, ${countLabel(summary.counts.activeUpdates, 'active update')}, ${countLabel(summary.counts.unread, 'unread change')}.`,
     'Questions:',
     ...(questions.length === 0
       ? ['- none']

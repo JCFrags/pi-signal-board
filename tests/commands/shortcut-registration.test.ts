@@ -132,7 +132,7 @@ describe('SB-029 shortcut registration boundary', () => {
       await harness.dispatch('session_start');
       harness.uiCalls.length = 0;
       await shortcut(harness).handler(harness.context());
-      expect(lastNotice(harness)).toContain('Signal: 0 actionable questions');
+      expect(lastNotice(harness)).toContain('Signals: 0 actionable questions');
       expect(harness.uiCalls.some((call) => call.surface === 'custom')).toBe(false);
       expect(harness.appendCalls).toHaveLength(0);
     }
@@ -148,7 +148,7 @@ describe('SB-029 shortcut registration boundary', () => {
       ui: { ...base.ui, custom: undefined },
     } as unknown as ExtensionContext;
     await shortcut(harness).handler(context);
-    expect(lastNotice(harness)).toContain('Signal: 0 actionable questions');
+    expect(lastNotice(harness)).toContain('Signals: 0 actionable questions');
     expect(harness.appendCalls).toHaveLength(0);
   });
 

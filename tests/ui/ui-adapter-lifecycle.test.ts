@@ -88,7 +88,7 @@ describe('runtime-owned UI adapter wiring', () => {
     expect(test.lifecycle.slot.current()?.ui).toBe(adapter);
     expect(installedLines(test.harness).join('\n')).toContain('[BLOCKED] U-1');
     expect(installedLines(test.harness).at(-1)).toBe('Open /signalboard:2');
-    expect(surfaceCalls(test.harness, 'setStatus').at(-1)?.args[1]).toBe('Signal: 0Q 1U 1 new');
+    expect(surfaceCalls(test.harness, 'setStatus').at(-1)?.args[1]).toBe('Signals: 0Q 1U 1 new');
     expect(test.hookOrder).toEqual(['injected-refresh', 'injected-refresh']);
 
     test.harness.replaceBranch([]);
@@ -128,7 +128,7 @@ describe('runtime-owned UI adapter wiring', () => {
     await test.harness.dispatch('agent_settled');
     expect(test.lifecycle.slot.current()?.ui).toBe(adapter);
     expect(installedLines(test.harness).join('\n')).toContain('[WORKING] U-1');
-    expect(surfaceCalls(test.harness, 'setStatus').at(-1)?.args[1]).toBe('Signal: 0Q 1U 1 new');
+    expect(surfaceCalls(test.harness, 'setStatus').at(-1)?.args[1]).toBe('Signals: 0Q 1U 1 new');
     const diagnostics = test.lifecycle.slot.current()?.diagnostics.snapshot();
     expect(diagnostics?.counts.SB_UI_UNAVAILABLE).toBe(1);
     expect(JSON.stringify(diagnostics)).not.toContain('PRIVATE');
@@ -196,7 +196,7 @@ describe('runtime-owned UI adapter wiring', () => {
         }),
       ).resolves.toBeDefined();
       if (mode === 'rpc') {
-        expect(surfaceCalls(harness, 'setStatus').at(-1)?.args[1]).toBe('Signal: 0Q 1U 1 new');
+        expect(surfaceCalls(harness, 'setStatus').at(-1)?.args[1]).toBe('Signals: 0Q 1U 1 new');
       } else {
         expect(harness.uiCalls).toEqual([]);
       }

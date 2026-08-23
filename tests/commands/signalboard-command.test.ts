@@ -189,7 +189,7 @@ describe('SB-028 command boundary', () => {
       updates: new Map([[update.id, update]]),
     } as BoardState;
     expect(formatPlainSummary({ state }, NOW)).toBe(
-      'Signal: 1 actionable question, 1 active update, 0 unread changes.\nQuestions:\n- [DELIVERY FAILED] Q-1 Choose one?\nUpdates:\n- [FOUND] U-1 Found evidence',
+      'Signals: 1 actionable question, 1 active update, 0 unread changes.\nQuestions:\n- [DELIVERY FAILED] Q-1 Choose one?\nUpdates:\n- [FOUND] U-1 Found evidence',
     );
   });
 
@@ -202,7 +202,7 @@ describe('SB-028 command boundary', () => {
     await commandHandler(harness)('summary', harness.context() as ExtensionCommandContext);
 
     expect(lastNotice(harness)).toBe(
-      'Signal: 0 actionable questions, 0 active updates, 0 unread changes.\nQuestions:\n- none\nUpdates:\n- none',
+      'Signals: 0 actionable questions, 0 active updates, 0 unread changes.\nQuestions:\n- none\nUpdates:\n- none',
     );
     expect(harness.uiCalls.some((call) => call.surface === 'custom')).toBe(false);
     expect(harness.appendCalls).toHaveLength(0);
@@ -232,7 +232,7 @@ describe('SB-028 command boundary', () => {
         await commandHandler(harness)(args, harness.context() as ExtensionCommandContext);
       }
       expect(harness.uiCalls.some((call) => call.surface === 'custom')).toBe(false);
-      expect(lastNotice(harness)).toContain('Signal: 0 actionable questions');
+      expect(lastNotice(harness)).toContain('Signals: 0 actionable questions');
       expect(harness.appendCalls).toHaveLength(0);
       expect(harness.sendCalls).toHaveLength(0);
     },
@@ -248,7 +248,7 @@ describe('SB-028 command boundary', () => {
       ui: { ...base.ui, custom: undefined },
     } as unknown as ExtensionCommandContext;
     await commandHandler(harness)('', context);
-    expect(lastNotice(harness)).toContain('Signal: 0 actionable questions');
+    expect(lastNotice(harness)).toContain('Signals: 0 actionable questions');
   });
 
   it.each(['unknown', 'inbox extra', 'Doctor', '\tupdates\nextra\r'])(
